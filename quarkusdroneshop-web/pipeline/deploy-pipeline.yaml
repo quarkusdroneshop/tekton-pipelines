@@ -34,7 +34,7 @@ spec:
         - fetch-repository
       taskRef:
         kind: Task
-        name: maven-no-settings17
+        name: maven-no-settings21
       params:
         - name: CONTEXT_DIR
           value: .
@@ -57,7 +57,7 @@ spec:
 
             oc delete all -l app=web -n quarkusdroneshop-demo || true
             oc delete bc/web -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=web --image-stream=java:openjdk-11-ubi8 -n quarkusdroneshop-demo
+            oc new-build --binary --name=web --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
             oc start-build web --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app web --name=web --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/web JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo

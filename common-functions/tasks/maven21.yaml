@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: maven-no-settings21
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: Run Maven build without using custom settings.xml
+  params:
+    - name: GOALS
+      description: Maven goals to run
+      type: string
+    - name: CONTEXT_DIR
+      description: Directory containing the Maven project
+      type: string
+      default: "."
+  workspaces:
+    - name: source
+      description: The workspace containing the Maven project.
+  steps:
+    - name: mvn
+      image: registry.access.redhat.com/ubi9/openjdk-21
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      script: |
+        #!/bin/sh
+        echo "Running mvn $(params.GOALS)"
+        mvn $(params.GOALS)

@@ -2,4 +2,5 @@ resources:
 - tasks/git-clone.yaml
 - tasks/maven11.yaml
 - tasks/maven17.yaml
+- tasks/maven21.yaml
 - tasks/push-app.yaml
