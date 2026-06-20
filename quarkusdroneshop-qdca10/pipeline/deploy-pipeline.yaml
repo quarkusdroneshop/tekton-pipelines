@@ -39,7 +39,22 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean package"
+          value: "clean verify"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: publish-test-report
+      runAfter:
+        - maven-run
+      taskRef:
+        kind: Task
+        name: publish-test-report
+      params:
+        - name: APP_NAME
+          value: qdca10
+        - name: CONTEXT_DIR
+          value: .
       workspaces:
         - name: source
           workspace: shared-workspace

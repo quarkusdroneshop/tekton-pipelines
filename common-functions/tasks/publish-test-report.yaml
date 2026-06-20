@@ -1,0 +1,118 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: publish-test-report
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    Publish the generated test report (target/test-report/index.html) to
+    OpenShift as a standalone nginx Deployment + Route in the demo namespace.
+    The report is embedded in a ConfigMap so no additional storage is needed.
+  params:
+    - name: APP_NAME
+      description: Name used for the report Deployment/Route (e.g. web, counter)
+      type: string
+    - name: NAMESPACE
+      description: Target namespace where the report will be served
+      type: string
+      default: quarkusdroneshop-demo
+    - name: CONTEXT_DIR
+      description: Directory containing the Maven project (same as maven-run)
+      type: string
+      default: "."
+  workspaces:
+    - name: source
+      description: The workspace containing the built Maven project.
+  steps:
+    - name: publish
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      script: |
+        #!/bin/bash
+        set -e
+
+        REPORT_FILE="target/test-report/index.html"
+        APP="$(params.APP_NAME)"
+        NS="$(params.NAMESPACE)"
+        REPORT_APP_NAME="${APP}-test-report"
+
+        # ── 1. レポートファイルの存在確認 ────────────────────────────────
+        if [ ! -f "${REPORT_FILE}" ]; then
+          echo "[publish-test-report] ${REPORT_FILE} not found. Skipping."
+          exit 0
+        fi
+
+        echo "[publish-test-report] Publishing report for ${APP} to ${NS}..."
+
+        # ── 2. ConfigMap にHTMLを格納 ─────────────────────────────────────
+        oc delete configmap "${REPORT_APP_NAME}-html" -n "${NS}" --ignore-not-found
+        oc create configmap "${REPORT_APP_NAME}-html" \
+          --from-file=index.html="${REPORT_FILE}" \
+          -n "${NS}"
+
+        # ── 3. nginx Deployment ───────────────────────────────────────────
+        oc apply -n "${NS}" -f - <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${REPORT_APP_NAME}
+          labels:
+            app: ${REPORT_APP_NAME}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: ${REPORT_APP_NAME}
+          template:
+            metadata:
+              labels:
+                app: ${REPORT_APP_NAME}
+            spec:
+              containers:
+                - name: nginx
+                  image: registry.access.redhat.com/ubi9/nginx-124:latest
+                  ports:
+                    - containerPort: 8080
+                  volumeMounts:
+                    - name: report-html
+                      mountPath: /usr/share/nginx/html
+                  readinessProbe:
+                    httpGet:
+                      path: /index.html
+                      port: 8080
+                    initialDelaySeconds: 5
+                    periodSeconds: 5
+              volumes:
+                - name: report-html
+                  configMap:
+                    name: ${REPORT_APP_NAME}-html
+        EOF
+
+        # ── 4. Service ────────────────────────────────────────────────────
+        oc apply -n "${NS}" -f - <<EOF
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${REPORT_APP_NAME}
+          labels:
+            app: ${REPORT_APP_NAME}
+        spec:
+          selector:
+            app: ${REPORT_APP_NAME}
+          ports:
+            - port: 8080
+              targetPort: 8080
+        EOF
+
+        # ── 5. Route ──────────────────────────────────────────────────────
+        oc expose svc "${REPORT_APP_NAME}" -n "${NS}" --name="${REPORT_APP_NAME}" \
+          --overrides='{"spec":{"tls":null}}' 2>/dev/null || true
+
+        ROUTE_HOST=$(oc get route "${REPORT_APP_NAME}" -n "${NS}" \
+          -o jsonpath='{.spec.host}' 2>/dev/null || echo "pending")
+
+        echo ""
+        echo "=============================================="
+        echo " Test Report Published!"
+        echo " URL: http://${ROUTE_HOST}"
+        echo "=============================================="
