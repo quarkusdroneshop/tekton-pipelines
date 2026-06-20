@@ -5,3 +5,6 @@ resources:
 - tasks/maven21.yaml
 - tasks/push-app.yaml
 - tasks/publish-test-report.yaml
+- tasks/print-csv-table.yaml
+- tasks/semgrep-scan.yaml
+- tasks/owasp-dependency-check.yaml

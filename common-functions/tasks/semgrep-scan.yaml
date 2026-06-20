@@ -1,0 +1,110 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: semgrep-scan
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    Semgrep による SAST（静的アプリケーションセキュリティテスト）。
+    ソースコードを解析して OWASP Top 10 / Java セキュリティルールの違反を検出する。
+    FAIL_ON_FINDINGS=true の場合、HIGH 以上の検出でパイプラインを停止する。
+  params:
+    - name: CONTEXT_DIR
+      description: スキャン対象ディレクトリ（workspace 内の相対パス）
+      type: string
+      default: "."
+    - name: RULES
+      description: 使用する Semgrep ルールセット（カンマ区切り）
+      type: string
+      default: "p/java,p/owasp-top-ten,p/secrets"
+    - name: FAIL_ON_FINDINGS
+      description: "HIGH 以上の検出時にパイプラインを失敗させるか (true/false)"
+      type: string
+      default: "false"
+  workspaces:
+    - name: source
+      description: スキャン対象のソースコードが格納されているワークスペース
+  steps:
+    - name: scan
+      image: returntocorp/semgrep:latest
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      env:
+        - name: SEMGREP_RULES
+          value: $(params.RULES)
+        - name: FAIL_ON_FINDINGS
+          value: $(params.FAIL_ON_FINDINGS)
+      script: |
+        #!/bin/sh
+        set -e
+
+        echo "=============================================="
+        echo " Semgrep SAST スキャン開始"
+        echo " ルール: ${SEMGREP_RULES}"
+        echo "=============================================="
+
+        REPORT_DIR="$(workspaces.source.path)/target/semgrep-reports"
+        mkdir -p "${REPORT_DIR}"
+
+        # スキャン実行（終了コードを保存）
+        semgrep scan \
+          --config "${SEMGREP_RULES}" \
+          --json \
+          --output "${REPORT_DIR}/results.json" \
+          --no-git-ignore \
+          . || SCAN_EXIT=$?
+
+        SCAN_EXIT=${SCAN_EXIT:-0}
+
+        # サマリー表示
+        python3 - "${REPORT_DIR}/results.json" "${FAIL_ON_FINDINGS}" <<'PYEOF'
+        import json, sys
+
+        results_file   = sys.argv[1]
+        fail_on_finding = sys.argv[2].lower() == "true"
+
+        with open(results_file) as f:
+            data = json.load(f)
+
+        findings = data.get("results", [])
+        errors   = data.get("errors",  [])
+
+        severity_order = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+        counts = {"ERROR": 0, "WARNING": 0, "INFO": 0}
+
+        for r in findings:
+            sev = r.get("extra", {}).get("severity", "INFO").upper()
+            counts[sev] = counts.get(sev, 0) + 1
+
+        print("\n============================================")
+        print(" Semgrep スキャン結果サマリー")
+        print("============================================")
+        print(f" HIGH  (ERROR)  : {counts['ERROR']}")
+        print(f" MEDIUM(WARNING): {counts['WARNING']}")
+        print(f" LOW   (INFO)   : {counts['INFO']}")
+        print(f" 合計           : {len(findings)}")
+        print("============================================")
+
+        if findings:
+            print("\n--- 検出内容 (上位 20 件) ---")
+            for r in sorted(findings,
+                            key=lambda x: severity_order.get(
+                                x.get("extra", {}).get("severity", "INFO").upper(), 99))[:20]:
+                path = r.get("path", "")
+                line = r.get("start", {}).get("line", "?")
+                sev  = r.get("extra", {}).get("severity", "INFO")
+                msg  = r.get("extra", {}).get("message", "").split("\n")[0][:80]
+                rid  = r.get("check_id", "")
+                print(f"  [{sev}] {path}:{line}")
+                print(f"    ルール: {rid}")
+                print(f"    内容 : {msg}")
+
+        if errors:
+            print(f"\n警告: {len(errors)} 件の解析エラーが発生しました。")
+
+        if fail_on_finding and counts["ERROR"] > 0:
+            print(f"\n[FAIL] HIGH 検出 {counts['ERROR']} 件のためパイプラインを停止します。")
+            sys.exit(1)
+
+        print(f"\n[INFO] レポート: {sys.argv[1]}")
+        print("[OK] Semgrep スキャン完了")
+        PYEOF

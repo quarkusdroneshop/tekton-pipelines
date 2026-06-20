@@ -15,7 +15,7 @@ spec:
     - name: NAMESPACE
       description: Target namespace where the report will be served
       type: string
-      default: quarkusdroneshop-demo
+      default: quarkusdroneshop-cicd
     - name: CONTEXT_DIR
       description: Directory containing the Maven project (same as maven-run)
       type: string
@@ -105,8 +105,7 @@ spec:
         EOF
 
         # ── 5. Route ──────────────────────────────────────────────────────
-        oc expose svc "${REPORT_APP_NAME}" -n "${NS}" --name="${REPORT_APP_NAME}" \
-          --overrides='{"spec":{"tls":null}}' 2>/dev/null || true
+        oc expose svc "${REPORT_APP_NAME}" -n "${NS}" --name="${REPORT_APP_NAME}" 2>/dev/null || true
 
         ROUTE_HOST=$(oc get route "${REPORT_APP_NAME}" -n "${NS}" \
           -o jsonpath='{.spec.host}' 2>/dev/null || echo "pending")

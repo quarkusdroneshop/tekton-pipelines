@@ -29,9 +29,24 @@ spec:
         - name: output
           workspace: shared-workspace
 
-    - name: maven-run
+    - name: semgrep-scan
       runAfter:
         - fetch-repository
+      taskRef:
+        kind: Task
+        name: semgrep-scan
+      params:
+        - name: RULES
+          value: "p/java,p/owasp-top-ten,p/secrets"
+        - name: FAIL_ON_FINDINGS
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: maven-run
+      runAfter:
+        - semgrep-scan
       taskRef:
         kind: Task
         name: maven-no-settings11
@@ -44,9 +59,35 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: publish-test-report
+    - name: owasp-dependency-check
       runAfter:
         - maven-run
+      taskRef:
+        kind: Task
+        name: owasp-dependency-check
+      params:
+        - name: FAIL_ON_CVSS
+          value: "7"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: print-csv-table
+      runAfter:
+        - owasp-dependency-check
+      taskRef:
+        kind: Task
+        name: print-csv-table
+      params:
+        - name: TITLE
+          value: "qdca10 テスト結果サマリー"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: publish-test-report
+      runAfter:
+        - print-csv-table
       taskRef:
         kind: Task
         name: publish-test-report
