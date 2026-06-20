@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: owasp-dependency-check-update
+  namespace: quarkusdroneshop-cicd
+spec:
+  workspaces:
+    - name: cache
+
+  steps:
+    - name: update-db
+      image: owasp/dependency-check:latest
+      env:
+        - name: NVD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nvd-api-key
+              key: key
+
+      script: |
+        #!/bin/sh
+        set -e
+
+        CACHE_DIR="$(workspaces.cache.path)/nvd-data"
+
+        if [ -f "${CACHE_DIR}/odc.mv.db" ]; then
+          AGE=$(find "${CACHE_DIR}" -name "*.mv.db" -mtime +7)
+
+          if [ -z "$AGE" ]; then
+            echo "DB is fresh"
+            exit 0
+          fi
+        fi
+
+        /usr/share/dependency-check/bin/dependency-check.sh \
+          --updateonly \
+          --data "${CACHE_DIR}" \
+          --nvdApiKey "${NVD_API_KEY}"

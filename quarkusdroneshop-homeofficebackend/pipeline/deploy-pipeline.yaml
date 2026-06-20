@@ -68,9 +68,14 @@ spec:
       params:
         - name: FAIL_ON_CVSS
           value: "7"
+        - name: NVD_API_DELAY
+          value: "16000"
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: cache
+          workspace: shared-workspace
+          subPath: nvd-cache
 
     - name: print-csv-table
       runAfter:

@@ -8,3 +8,5 @@ resources:
 - tasks/print-csv-table.yaml
 - tasks/semgrep-scan.yaml
 - tasks/owasp-dependency-check.yaml
+- tasks/owasp-dependency-check-update.yaml
+- tasks/pipeline-summary.yaml

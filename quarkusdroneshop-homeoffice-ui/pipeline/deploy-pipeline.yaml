@@ -140,6 +140,9 @@ spec:
                 }
               ]'
 
+            npm test
+            npm run test:e2e 
+
       runAfter:
         - fetch-repository
       taskRef:

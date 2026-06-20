@@ -11,6 +11,19 @@ spec:
       description: Image Tag Value
       name: IMAGE_TAG
       type: string
+  results:
+    - name: junit
+      description: JUnit test result summary
+      value: $(tasks.pipeline-summary.results.junit)
+    - name: semgrep
+      description: Semgrep SAST result summary
+      value: $(tasks.pipeline-summary.results.semgrep)
+    - name: owasp
+      description: OWASP Dependency-Check result summary
+      value: $(tasks.pipeline-summary.results.owasp)
+    - name: report-url
+      description: Test report URL
+      value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
   tasks:
@@ -68,9 +81,14 @@ spec:
       params:
         - name: FAIL_ON_CVSS
           value: "7"
+        - name: NVD_API_DELAY
+          value: "16000"
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: cache
+          workspace: shared-workspace
+          subPath: nvd-cache
 
     - name: print-csv-table
       runAfter:
@@ -99,6 +117,44 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+
+    - name: pipeline-summary
+      runAfter:
+        - publish-test-report
+      taskRef:
+        kind: Task
+        name: pipeline-summary
+      params:
+        - name: APP_NAME
+          value: qdca10
+        - name: TEST_TOTAL
+          value: $(tasks.print-csv-table.results.total-tests)
+        - name: TEST_PASSED
+          value: $(tasks.print-csv-table.results.passed)
+        - name: TEST_FAILURES
+          value: $(tasks.print-csv-table.results.failures)
+        - name: TEST_ERRORS
+          value: $(tasks.print-csv-table.results.errors)
+        - name: SEMGREP_HIGH
+          value: $(tasks.semgrep-scan.results.high)
+        - name: SEMGREP_MEDIUM
+          value: $(tasks.semgrep-scan.results.medium)
+        - name: SEMGREP_LOW
+          value: $(tasks.semgrep-scan.results.low)
+        - name: SEMGREP_TOTAL
+          value: $(tasks.semgrep-scan.results.total)
+        - name: OWASP_CRITICAL
+          value: $(tasks.owasp-dependency-check.results.critical)
+        - name: OWASP_HIGH
+          value: $(tasks.owasp-dependency-check.results.high)
+        - name: OWASP_MEDIUM
+          value: $(tasks.owasp-dependency-check.results.medium)
+        - name: OWASP_LOW
+          value: $(tasks.owasp-dependency-check.results.low)
+        - name: OWASP_TOTAL
+          value: $(tasks.owasp-dependency-check.results.total)
+        - name: REPORT_URL
+          value: $(tasks.publish-test-report.results.report-url)
 
     - name: push-oc-apps
       runAfter:

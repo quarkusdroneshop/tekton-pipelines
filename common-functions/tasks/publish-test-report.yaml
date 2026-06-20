@@ -20,6 +20,9 @@ spec:
       description: Directory containing the Maven project (same as maven-run)
       type: string
       default: "."
+  results:
+    - name: report-url
+      description: Published test report URL
   workspaces:
     - name: source
       description: The workspace containing the built Maven project.
@@ -38,17 +41,16 @@ spec:
 
         # ── 1. レポートファイルの存在確認 ────────────────────────────────
         if [ ! -f "${REPORT_FILE}" ]; then
-          echo "[publish-test-report] ${REPORT_FILE} not found. Skipping."
+          echo "SKIP: ${REPORT_FILE} not found."
+          printf "skipped" > $(results.report-url.path)
           exit 0
         fi
 
-        echo "[publish-test-report] Publishing report for ${APP} to ${NS}..."
-
         # ── 2. ConfigMap にHTMLを格納 ─────────────────────────────────────
-        oc delete configmap "${REPORT_APP_NAME}-html" -n "${NS}" --ignore-not-found
+        oc delete configmap "${REPORT_APP_NAME}-html" -n "${NS}" --ignore-not-found -o name 2>/dev/null | sed 's/^/deleted: /' || true
         oc create configmap "${REPORT_APP_NAME}-html" \
           --from-file=index.html="${REPORT_FILE}" \
-          -n "${NS}"
+          -n "${NS}" -o name
 
         # ── 3. nginx Deployment ───────────────────────────────────────────
         oc apply -n "${NS}" -f - <<EOF
@@ -70,7 +72,7 @@ spec:
             spec:
               containers:
                 - name: nginx
-                  image: registry.access.redhat.com/ubi9/nginx-124:latest
+                  image: nginxinc/nginx-unprivileged:1.27-alpine
                   ports:
                     - containerPort: 8080
                   volumeMounts:
@@ -110,8 +112,6 @@ spec:
         ROUTE_HOST=$(oc get route "${REPORT_APP_NAME}" -n "${NS}" \
           -o jsonpath='{.spec.host}' 2>/dev/null || echo "pending")
 
-        echo ""
-        echo "=============================================="
-        echo " Test Report Published!"
-        echo " URL: http://${ROUTE_HOST}"
-        echo "=============================================="
+        REPORT_URL="http://${ROUTE_HOST}"
+        printf "%s" "${REPORT_URL}" > $(results.report-url.path)
+        echo "OK: report-url=${REPORT_URL}"

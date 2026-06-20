@@ -23,6 +23,15 @@ spec:
   workspaces:
     - name: source
       description: Maven プロジェクトが格納されているワークスペース
+  results:
+    - name: total-tests
+      description: Total test count
+    - name: passed
+      description: Passed test count
+    - name: failures
+      description: Failed test count
+    - name: errors
+      description: Error test count
   steps:
     - name: print-table
       image: python:3.12-slim
@@ -62,6 +71,12 @@ spec:
                 print_row(row, widths)
             print_sep(widths)
 
+        def write_results(total, passed, failures, errors):
+            with open("$(results.total-tests.path)", "w") as f: f.write(str(total))
+            with open("$(results.passed.path)",      "w") as f: f.write(str(passed))
+            with open("$(results.failures.path)",    "w") as f: f.write(str(failures))
+            with open("$(results.errors.path)",      "w") as f: f.write(str(errors))
+
         # --- CSV モード ---
         if csv_file:
             csv_path = os.path.join(base_dir, csv_file)
@@ -71,6 +86,7 @@ spec:
             with open(csv_path, newline="", encoding="utf-8") as f:
                 rows = list(csv.reader(f))
             render_table(rows, title)
+            write_results(0, 0, 0, 0)
             sys.exit(0)
 
         # --- Surefire XML モード ---
@@ -115,6 +131,7 @@ spec:
 
         rows.append(["合計", total_tests, total_passed, total_failures, total_errors, total_skipped, f"{total_time:.2f}"])
         render_table(rows, title)
+        write_results(total_tests, total_passed, total_failures, total_errors)
 
         if total_failures > 0 or total_errors > 0:
             print(f"\n[print-csv-table] 失敗: {total_failures} / エラー: {total_errors}")

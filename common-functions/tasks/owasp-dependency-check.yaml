@@ -8,37 +8,68 @@ spec:
     OWASP Dependency-Check による SCA（ソフトウェア構成分析）。
     Maven の依存ライブラリに既知の CVE 脆弱性が含まれていないか検査する。
     FAIL_ON_CVSS を超えるスコアの CVE が検出された場合にパイプラインを停止できる。
+
   params:
     - name: CONTEXT_DIR
       description: Maven プロジェクトのディレクトリ（workspace 内の相対パス）
       type: string
       default: "."
+
     - name: FAIL_ON_CVSS
       description: この CVSS スコア以上で失敗させる（0-10、11=無効）
       type: string
       default: "7"
+
     - name: SUPPRESSION_FILE
       description: 抑制ファイルのパス（workspace 内の相対パス、省略可）
       type: string
       default: ""
-    - name: NVD_API_KEY
-      description: NVD API キーの Secret 名（省略時はレート制限あり）
+
+    - name: NVD_API_DELAY
+      description: NVD API リクエスト間隔（ミリ秒）。503/429 対策として大きくする
       type: string
-      default: ""
+      default: "16000"
+
+  results:
+    - name: critical
+      description: CRITICAL CVE count (CVSS >= 9.0)
+    - name: high
+      description: HIGH CVE count (CVSS 7.0-8.9)
+    - name: medium
+      description: MEDIUM CVE count (CVSS 4.0-6.9)
+    - name: low
+      description: LOW CVE count (CVSS < 4.0)
+    - name: total
+      description: Total CVE count
   workspaces:
     - name: source
       description: Maven プロジェクトが格納されているワークスペース
+    - name: cache
+      description: NVD データベースのキャッシュ（PVC をマウントして毎回のダウンロードを回避する）
+      optional: false
+
   steps:
     - name: scan
       image: owasp/dependency-check:latest
       workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+
       env:
         - name: FAIL_ON_CVSS
           value: $(params.FAIL_ON_CVSS)
         - name: SUPPRESSION_FILE
           value: $(params.SUPPRESSION_FILE)
+        - name: NVD_API_DELAY
+          value: $(params.NVD_API_DELAY)
+        - name: NVD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nvd-api-key
+              key: key
+              optional: true
+
+
       script: |
-        #!/bin/bash
+        #!/bin/sh
         set -e
 
         echo "=============================================="
@@ -49,41 +80,48 @@ spec:
         REPORT_DIR="$(workspaces.source.path)/target/dependency-check-reports"
         mkdir -p "${REPORT_DIR}"
 
-        OPTS=(
-          --scan "$(workspaces.source.path)/$(params.CONTEXT_DIR)"
-          --format "HTML"
-          --format "JSON"
-          --out "${REPORT_DIR}"
+        CACHE_DIR="$(workspaces.cache.path)/nvd-data"
+        mkdir -p "${CACHE_DIR}"
+
+        OPTS="
+          --scan $(workspaces.source.path)/$(params.CONTEXT_DIR)
+          --format HTML
+          --format JSON
+          --out ${REPORT_DIR}
+          --data ${CACHE_DIR}
           --enableRetired
           --prettyPrint
-        )
+          --noupdate
+        "
 
-        # 抑制ファイルが指定されている場合
-        if [ -n "${SUPPRESSION_FILE}" ]; then
-          SUPPRESSION_PATH="$(workspaces.source.path)/${SUPPRESSION_FILE}"
-          if [ -f "${SUPPRESSION_PATH}" ]; then
-            OPTS+=(--suppression "${SUPPRESSION_PATH}")
-            echo "[INFO] 抑制ファイルを使用: ${SUPPRESSION_PATH}"
-          fi
-        fi
-
-        # スキャン実行
-        /usr/share/dependency-check/bin/dependency-check.sh "${OPTS[@]}" || true
+        # スキャン実行（失敗してもパイプラインは継続）
+        /usr/share/dependency-check/bin/dependency-check.sh $OPTS || {
+          echo "[WARN] dependency-check コマンドが失敗しました（NVD接続エラーの可能性）"
+        }
 
         # JSON レポート解析・サマリー表示
         REPORT_JSON="${REPORT_DIR}/dependency-check-report.json"
 
         if [ ! -f "${REPORT_JSON}" ]; then
-          echo "[WARN] JSON レポートが生成されませんでした。"
+          echo "[WARN] JSON レポートが生成されませんでした。（NVD接続エラーまたはスキャン失敗）"
+          printf "検証不可" > "$(results.critical.path)"
+          printf "検証不可" > "$(results.high.path)"
+          printf "検証不可" > "$(results.medium.path)"
+          printf "検証不可" > "$(results.low.path)"
+          printf "検証不可" > "$(results.total.path)"
           exit 0
         fi
 
-        python3 - "${REPORT_JSON}" "${FAIL_ON_CVSS}" "${REPORT_DIR}" <<'PYEOF'
+        python3 - "${REPORT_JSON}" "${FAIL_ON_CVSS}" "${REPORT_DIR}" \
+          "$(results.critical.path)" "$(results.high.path)" \
+          "$(results.medium.path)"   "$(results.low.path)" \
+          "$(results.total.path)" <<'PYEOF'
         import json, sys
 
         report_file  = sys.argv[1]
         fail_cvss    = float(sys.argv[2]) if sys.argv[2] != "11" else 11.0
         report_dir   = sys.argv[3]
+        path_critical, path_high, path_medium, path_low, path_total = sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8]
 
         with open(report_file) as f:
             data = json.load(f)
@@ -92,55 +130,33 @@ spec:
 
         vulnerable = []
         for dep in dependencies:
-            vulns = dep.get("vulnerabilities", [])
-            if vulns:
-                for v in vulns:
-                    cvss_v3 = v.get("cvssv3", {}).get("baseScore", 0.0)
-                    cvss_v2 = v.get("cvssv2", {}).get("score",     0.0)
-                    score   = cvss_v3 if cvss_v3 else cvss_v2
-                    vulnerable.append({
-                        "lib":      dep.get("fileName", ""),
-                        "cve":      v.get("name", ""),
-                        "severity": v.get("severity", "UNKNOWN"),
-                        "score":    score,
-                        "desc":     v.get("description", "")[:100],
-                    })
+            for v in dep.get("vulnerabilities", []):
+                cvss_v3 = v.get("cvssv3", {}).get("baseScore", 0.0)
+                cvss_v2 = v.get("cvssv2", {}).get("score", 0.0)
+                score   = cvss_v3 if cvss_v3 else cvss_v2
+                vulnerable.append({"lib": dep.get("fileName", ""), "cve": v.get("name", ""),
+                                   "severity": v.get("severity", "UNKNOWN"), "score": score})
 
         vulnerable.sort(key=lambda x: x["score"], reverse=True)
 
-        total_libs  = len(dependencies)
-        vuln_count  = len(vulnerable)
-        critical    = sum(1 for v in vulnerable if v["score"] >= 9.0)
-        high        = sum(1 for v in vulnerable if 7.0 <= v["score"] < 9.0)
-        medium      = sum(1 for v in vulnerable if 4.0 <= v["score"] < 7.0)
-        low         = sum(1 for v in vulnerable if v["score"] < 4.0)
+        critical = sum(1 for v in vulnerable if v["score"] >= 9.0)
+        high     = sum(1 for v in vulnerable if 7.0 <= v["score"] < 9.0)
+        medium   = sum(1 for v in vulnerable if 4.0 <= v["score"] < 7.0)
+        low      = sum(1 for v in vulnerable if v["score"] < 4.0)
+        total    = len(vulnerable)
 
-        print("\n==============================================")
-        print(" OWASP Dependency-Check 結果サマリー")
-        print("==============================================")
-        print(f" スキャン対象ライブラリ: {total_libs}")
-        print(f" 脆弱性検出数          : {vuln_count}")
-        print(f"   CRITICAL (9.0-10.0) : {critical}")
-        print(f"   HIGH     (7.0- 8.9) : {high}")
-        print(f"   MEDIUM   (4.0- 6.9) : {medium}")
-        print(f"   LOW      (0.0- 3.9) : {low}")
-        print("==============================================")
+        open(path_critical, "w").write(str(critical))
+        open(path_high,     "w").write(str(high))
+        open(path_medium,   "w").write(str(medium))
+        open(path_low,      "w").write(str(low))
+        open(path_total,    "w").write(str(total))
 
-        if vulnerable:
-            print("\n--- 脆弱性一覧 (上位 20 件) ---")
-            for v in vulnerable[:20]:
-                flag = " *** FAIL ***" if v["score"] >= fail_cvss else ""
-                print(f"  [{v['score']:.1f}] {v['cve']} ({v['severity']}){flag}")
-                print(f"    ライブラリ: {v['lib']}")
-                print(f"    概要      : {v['desc']}")
-
-        print(f"\n[INFO] HTML レポート: {report_dir}/dependency-check-report.html")
-        print(f"[INFO] JSON レポート: {report_dir}/dependency-check-report.json")
+        print(f"CRITICAL={critical} HIGH={high} MEDIUM={medium} LOW={low} TOTAL={total}")
 
         exceed = [v for v in vulnerable if v["score"] >= fail_cvss]
         if exceed and fail_cvss <= 10.0:
-            print(f"\n[FAIL] CVSS {fail_cvss} 以上の脆弱性 {len(exceed)} 件が検出されました。")
+            print(f"FAIL: CVSS>={fail_cvss} found {len(exceed)} CVE(s)")
             sys.exit(1)
 
-        print("\n[OK] OWASP Dependency-Check スキャン完了")
+        print("OK: owasp-dependency-check done")
         PYEOF

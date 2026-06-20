@@ -21,6 +21,15 @@ spec:
       description: "HIGH 以上の検出時にパイプラインを失敗させるか (true/false)"
       type: string
       default: "false"
+  results:
+    - name: high
+      description: HIGH (ERROR) finding count
+    - name: medium
+      description: MEDIUM (WARNING) finding count
+    - name: low
+      description: LOW (INFO) finding count
+    - name: total
+      description: Total finding count
   workspaces:
     - name: source
       description: スキャン対象のソースコードが格納されているワークスペース
@@ -55,12 +64,15 @@ spec:
 
         SCAN_EXIT=${SCAN_EXIT:-0}
 
-        # サマリー表示
-        python3 - "${REPORT_DIR}/results.json" "${FAIL_ON_FINDINGS}" <<'PYEOF'
-        import json, sys
+        # サマリー表示・results 書き込み
+        python3 - "${REPORT_DIR}/results.json" "${FAIL_ON_FINDINGS}" \
+          "$(results.high.path)" "$(results.medium.path)" \
+          "$(results.low.path)"  "$(results.total.path)" <<'PYEOF'
+        import json, sys, os
 
-        results_file   = sys.argv[1]
+        results_file    = sys.argv[1]
         fail_on_finding = sys.argv[2].lower() == "true"
+        path_high, path_medium, path_low, path_total = sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
 
         with open(results_file) as f:
             data = json.load(f)
@@ -70,41 +82,60 @@ spec:
 
         severity_order = {"ERROR": 0, "WARNING": 1, "INFO": 2}
         counts = {"ERROR": 0, "WARNING": 0, "INFO": 0}
-
         for r in findings:
             sev = r.get("extra", {}).get("severity", "INFO").upper()
             counts[sev] = counts.get(sev, 0) + 1
 
-        print("\n============================================")
-        print(" Semgrep スキャン結果サマリー")
-        print("============================================")
-        print(f" HIGH  (ERROR)  : {counts['ERROR']}")
-        print(f" MEDIUM(WARNING): {counts['WARNING']}")
-        print(f" LOW   (INFO)   : {counts['INFO']}")
-        print(f" 合計           : {len(findings)}")
-        print("============================================")
+        open(path_high,   "w").write(str(counts["ERROR"]))
+        open(path_medium, "w").write(str(counts["WARNING"]))
+        open(path_low,    "w").write(str(counts["INFO"]))
+        open(path_total,  "w").write(str(len(findings)))
 
-        if findings:
-            print("\n--- 検出内容 (上位 20 件) ---")
-            for r in sorted(findings,
-                            key=lambda x: severity_order.get(
-                                x.get("extra", {}).get("severity", "INFO").upper(), 99))[:20]:
-                path = r.get("path", "")
-                line = r.get("start", {}).get("line", "?")
-                sev  = r.get("extra", {}).get("severity", "INFO")
-                msg  = r.get("extra", {}).get("message", "").split("\n")[0][:80]
-                rid  = r.get("check_id", "")
-                print(f"  [{sev}] {path}:{line}")
-                print(f"    ルール: {rid}")
-                print(f"    内容 : {msg}")
+        # ── 詳細結果をログ出力 ───────────────────────────────────────────
+        SEV_LABEL = {"ERROR": "HIGH  ", "WARNING": "MEDIUM", "INFO": "LOW   "}
+        SEV_SORT  = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+
+        sorted_findings = sorted(
+            findings,
+            key=lambda r: SEV_SORT.get(r.get("extra", {}).get("severity", "INFO").upper(), 9)
+        )
+
+        if sorted_findings:
+            print()
+            print("=" * 72)
+            print(f"  Semgrep 検出詳細  ({len(sorted_findings)} 件)")
+            print("=" * 72)
+            for r in sorted_findings:
+                sev   = r.get("extra", {}).get("severity", "INFO").upper()
+                label = SEV_LABEL.get(sev, sev)
+                path  = r.get("path", "")
+                start = r.get("start", {})
+                line  = start.get("line", "?")
+                rule  = r.get("check_id", "")
+                msg   = r.get("extra", {}).get("message", "").strip().replace("\n", " ")
+                # ソースコードの該当行を表示
+                lines_preview = r.get("extra", {}).get("lines", "").strip()
+
+                print(f"[{label}] {path}:{line}")
+                print(f"  Rule   : {rule}")
+                print(f"  Message: {msg}")
+                if lines_preview:
+                    print(f"  Code   : {lines_preview[:120]}")
+                print()
+            print("=" * 72)
+        else:
+            print()
+            print("  Semgrep: 検出なし ✅")
+            print()
 
         if errors:
-            print(f"\n警告: {len(errors)} 件の解析エラーが発生しました。")
+            print(f"WARN: {len(errors)} parse error(s)")
+
+        print(f"HIGH={counts['ERROR']} MEDIUM={counts['WARNING']} LOW={counts['INFO']} TOTAL={len(findings)}")
 
         if fail_on_finding and counts["ERROR"] > 0:
-            print(f"\n[FAIL] HIGH 検出 {counts['ERROR']} 件のためパイプラインを停止します。")
+            print(f"FAIL: HIGH {counts['ERROR']} findings")
             sys.exit(1)
 
-        print(f"\n[INFO] レポート: {sys.argv[1]}")
-        print("[OK] Semgrep スキャン完了")
+        print("OK: semgrep-scan done")
         PYEOF
