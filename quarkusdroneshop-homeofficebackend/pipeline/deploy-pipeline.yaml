@@ -102,7 +102,7 @@ spec:
 
     - name: print-csv-table
       runAfter:
-        - owasp-dependency-check
+        - pipeline-summary
       taskRef:
         kind: Task
         name: print-csv-table
@@ -168,7 +168,7 @@ spec:
 
     - name: push-oc-apps
       runAfter:
-        - owasp-dependency-check
+        - pipeline-summary
       taskRef:
         name: push-app-task
       params:
