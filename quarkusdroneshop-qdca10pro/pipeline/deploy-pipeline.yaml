@@ -168,7 +168,7 @@ spec:
 
     - name: push-oc-apps
       runAfter:
-        - pipeline-summary
+        - publish-test-report
       taskRef:
         name: push-app-task
       params:
