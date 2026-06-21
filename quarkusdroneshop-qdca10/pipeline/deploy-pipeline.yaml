@@ -31,6 +31,7 @@ spec:
   tasks:
 
     - name: owasp-dependency-check-update
+      onError: continue
       taskRef:
         name: owasp-dependency-check-update
       workspaces:
