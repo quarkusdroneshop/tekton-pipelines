@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: quarkusdroneshop-qdca10-shared-workspace-pvc
+  name: dependency-check-db
   namespace: quarkusdroneshop-cicd
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
+  storageClassName: efs-sc
   resources:
     requests:
-      storage: 5Gi
-  storageClassName: gp3-csi
+      storage: 20Gi

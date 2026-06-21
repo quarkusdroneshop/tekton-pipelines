@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: homeoffice-backend-shared-workspace-pvc
+  name: quarkusdroneshop-homeofficebackend-shared-workspace-pvc
   namespace: quarkusdroneshop-cicd
 spec:
   accessModes:
@@ -9,3 +9,4 @@ spec:
   resources:
     requests:
       storage: 5Gi
+  storageClassName: gp3-csi

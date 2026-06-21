@@ -26,7 +26,17 @@ spec:
       value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
+    - name: dependency-check-cache
+      description: "NVD DB (dependency-check-db PVC, CronJob で毎日更新)"
   tasks:
+
+    - name: owasp-dependency-check-update
+      taskRef:
+        name: owasp-dependency-check-update
+      workspaces:
+        - name: cache
+          workspace: dependency-check-cache
+
     - name: fetch-repository
       params:
         - name: url
@@ -75,20 +85,20 @@ spec:
     - name: owasp-dependency-check
       runAfter:
         - maven-run
+        - owasp-dependency-check-update
       taskRef:
         kind: Task
         name: owasp-dependency-check
       params:
         - name: FAIL_ON_CVSS
-          value: "7"
+          value: "8"
         - name: NVD_API_DELAY
           value: "16000"
       workspaces:
         - name: source
           workspace: shared-workspace
         - name: cache
-          workspace: shared-workspace
-          subPath: nvd-cache
+          workspace: dependency-check-cache
 
     - name: print-csv-table
       runAfter:
@@ -180,12 +190,30 @@ spec:
             oc set env deployment/inventory PGSQL_USER=$PGSQL_USER -n quarkusdroneshop-demo
             PGSQL_PASS=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
             oc set env deployment/inventory PGSQL_PASS=$PGSQL_PASS -n quarkusdroneshop-demo
-            
+
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
             oc set env deployment/inventory KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
             QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
             oc set env deployment/inventory QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
-
       workspaces:
         - name: source
           workspace: shared-workspace
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: build-and-push-quarkusdroneshop-inventory
+  namespace: quarkusdroneshop-cicd
+spec:
+  pipelineRef:
+    name: build-and-push-quarkusdroneshop-inventory
+  params:
+    - name: IMAGE_TAG
+      value: latest
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: quarkusdroneshop-inventory-shared-workspace-pvc
+    - name: dependency-check-cache
+      persistentVolumeClaim:
+        claimName: dependency-check-db

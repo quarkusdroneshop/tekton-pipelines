@@ -8,6 +8,7 @@ spec:
     OWASP Dependency-Check による SCA（ソフトウェア構成分析）。
     Maven の依存ライブラリに既知の CVE 脆弱性が含まれていないか検査する。
     FAIL_ON_CVSS を超えるスコアの CVE が検出された場合にパイプラインを停止できる。
+    NVD データベースは dependency-check-db PVC（CronJob で毎日更新）を参照する。
 
   params:
     - name: CONTEXT_DIR
@@ -25,11 +26,6 @@ spec:
       type: string
       default: ""
 
-    - name: NVD_API_DELAY
-      description: NVD API リクエスト間隔（ミリ秒）。503/429 対策として大きくする
-      type: string
-      default: "16000"
-
   results:
     - name: critical
       description: CRITICAL CVE count (CVSS >= 9.0)
@@ -41,11 +37,12 @@ spec:
       description: LOW CVE count (CVSS < 4.0)
     - name: total
       description: Total CVE count
+
   workspaces:
     - name: source
       description: Maven プロジェクトが格納されているワークスペース
     - name: cache
-      description: NVD データベースのキャッシュ（PVC をマウントして毎回のダウンロードを回避する）
+      description: NVD データベース（dependency-check-db PVC をマウント）
       optional: false
 
   steps:
@@ -58,15 +55,12 @@ spec:
           value: $(params.FAIL_ON_CVSS)
         - name: SUPPRESSION_FILE
           value: $(params.SUPPRESSION_FILE)
-        - name: NVD_API_DELAY
-          value: $(params.NVD_API_DELAY)
         - name: NVD_API_KEY
           valueFrom:
             secretKeyRef:
               name: nvd-api-key
               key: key
               optional: true
-
 
       script: |
         #!/bin/sh
@@ -81,8 +75,12 @@ spec:
         mkdir -p "${REPORT_DIR}"
 
         CACHE_DIR="$(workspaces.cache.path)/nvd-data"
-        mkdir -p "${CACHE_DIR}"
 
+        echo "=== CACHE_DIR: ${CACHE_DIR} ==="
+        find "${CACHE_DIR}" -type f -ls 2>/dev/null || true
+        du -sh "${CACHE_DIR}" 2>/dev/null || true
+
+        # OPTS 構築
         OPTS="
           --scan $(workspaces.source.path)/$(params.CONTEXT_DIR)
           --format HTML
@@ -92,18 +90,22 @@ spec:
           --enableRetired
           --prettyPrint
           --noupdate
+          --failOnCVSS ${FAIL_ON_CVSS}
         "
 
-        # スキャン実行（失敗してもパイプラインは継続）
-        /usr/share/dependency-check/bin/dependency-check.sh $OPTS || {
-          echo "[WARN] dependency-check コマンドが失敗しました（NVD接続エラーの可能性）"
-        }
+        if [ -n "${SUPPRESSION_FILE}" ]; then
+          OPTS="${OPTS} --suppression $(workspaces.source.path)/${SUPPRESSION_FILE}"
+        fi
 
-        # JSON レポート解析・サマリー表示
+        # スキャン実行（failOnCVSS に引っかかると非ゼロ終了）
+        SCAN_EXIT=0
+        /usr/share/dependency-check/bin/dependency-check.sh $OPTS || SCAN_EXIT=$?
+
+        # JSON レポート解析
         REPORT_JSON="${REPORT_DIR}/dependency-check-report.json"
 
         if [ ! -f "${REPORT_JSON}" ]; then
-          echo "[WARN] JSON レポートが生成されませんでした。（NVD接続エラーまたはスキャン失敗）"
+          echo "[WARN] JSON レポートが生成されませんでした。"
           printf "検証不可" > "$(results.critical.path)"
           printf "検証不可" > "$(results.high.path)"
           printf "検証不可" > "$(results.medium.path)"
@@ -112,51 +114,20 @@ spec:
           exit 0
         fi
 
-        python3 - "${REPORT_JSON}" "${FAIL_ON_CVSS}" "${REPORT_DIR}" \
-          "$(results.critical.path)" "$(results.high.path)" \
-          "$(results.medium.path)"   "$(results.low.path)" \
-          "$(results.total.path)" <<'PYEOF'
-        import json, sys
+        # severity カウント（grep + wc でシェル完結）
+        CRITICAL=$(grep -o '"severity":"CRITICAL"' "${REPORT_JSON}" | wc -l | tr -d ' ')
+        HIGH=$(grep -o '"severity":"HIGH"'     "${REPORT_JSON}" | wc -l | tr -d ' ')
+        MEDIUM=$(grep -o '"severity":"MEDIUM"'  "${REPORT_JSON}" | wc -l | tr -d ' ')
+        LOW=$(grep -o '"severity":"LOW"'      "${REPORT_JSON}" | wc -l | tr -d ' ')
+        TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
 
-        report_file  = sys.argv[1]
-        fail_cvss    = float(sys.argv[2]) if sys.argv[2] != "11" else 11.0
-        report_dir   = sys.argv[3]
-        path_critical, path_high, path_medium, path_low, path_total = sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8]
+        printf "%s" "${CRITICAL}" > "$(results.critical.path)"
+        printf "%s" "${HIGH}"     > "$(results.high.path)"
+        printf "%s" "${MEDIUM}"   > "$(results.medium.path)"
+        printf "%s" "${LOW}"      > "$(results.low.path)"
+        printf "%s" "${TOTAL}"    > "$(results.total.path)"
 
-        with open(report_file) as f:
-            data = json.load(f)
+        echo "CRITICAL=${CRITICAL} HIGH=${HIGH} MEDIUM=${MEDIUM} LOW=${LOW} TOTAL=${TOTAL}"
 
-        dependencies = data.get("dependencies", [])
-
-        vulnerable = []
-        for dep in dependencies:
-            for v in dep.get("vulnerabilities", []):
-                cvss_v3 = v.get("cvssv3", {}).get("baseScore", 0.0)
-                cvss_v2 = v.get("cvssv2", {}).get("score", 0.0)
-                score   = cvss_v3 if cvss_v3 else cvss_v2
-                vulnerable.append({"lib": dep.get("fileName", ""), "cve": v.get("name", ""),
-                                   "severity": v.get("severity", "UNKNOWN"), "score": score})
-
-        vulnerable.sort(key=lambda x: x["score"], reverse=True)
-
-        critical = sum(1 for v in vulnerable if v["score"] >= 9.0)
-        high     = sum(1 for v in vulnerable if 7.0 <= v["score"] < 9.0)
-        medium   = sum(1 for v in vulnerable if 4.0 <= v["score"] < 7.0)
-        low      = sum(1 for v in vulnerable if v["score"] < 4.0)
-        total    = len(vulnerable)
-
-        open(path_critical, "w").write(str(critical))
-        open(path_high,     "w").write(str(high))
-        open(path_medium,   "w").write(str(medium))
-        open(path_low,      "w").write(str(low))
-        open(path_total,    "w").write(str(total))
-
-        print(f"CRITICAL={critical} HIGH={high} MEDIUM={medium} LOW={low} TOTAL={total}")
-
-        exceed = [v for v in vulnerable if v["score"] >= fail_cvss]
-        if exceed and fail_cvss <= 10.0:
-            print(f"FAIL: CVSS>={fail_cvss} found {len(exceed)} CVE(s)")
-            sys.exit(1)
-
-        print("OK: owasp-dependency-check done")
-        PYEOF
+        # dependency-check 自体の終了コードをそのまま伝播
+        exit ${SCAN_EXIT}

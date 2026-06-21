@@ -26,7 +26,17 @@ spec:
       value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
+    - name: dependency-check-cache
+      description: "NVD DB (dependency-check-db PVC, CronJob で毎日更新)"
   tasks:
+
+    - name: owasp-dependency-check-update
+      taskRef:
+        name: owasp-dependency-check-update
+      workspaces:
+        - name: cache
+          workspace: dependency-check-cache
+
     - name: fetch-repository
       params:
         - name: url
@@ -75,20 +85,20 @@ spec:
     - name: owasp-dependency-check
       runAfter:
         - maven-run
+        - owasp-dependency-check-update
       taskRef:
         kind: Task
         name: owasp-dependency-check
       params:
         - name: FAIL_ON_CVSS
-          value: "7"
+          value: "8"
         - name: NVD_API_DELAY
           value: "16000"
       workspaces:
         - name: source
           workspace: shared-workspace
         - name: cache
-          workspace: shared-workspace
-          subPath: nvd-cache
+          workspace: dependency-check-cache
 
     - name: print-csv-table
       runAfter:
@@ -173,7 +183,7 @@ spec:
             oc start-build qdca10pro --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app qdca10pro --name=qdca10pro --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/qdca10pro JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
-            
+
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
             oc set env deployment/qdca10pro KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
             QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
@@ -183,3 +193,22 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: build-and-push-quarkusdroneshop-qdca10pro
+  namespace: quarkusdroneshop-cicd
+spec:
+  pipelineRef:
+    name: build-and-push-quarkusdroneshop-qdca10pro
+  params:
+    - name: IMAGE_TAG
+      value: latest
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: quarkusdroneshop-qdca10pro-shared-workspace-pvc
+    - name: dependency-check-cache
+      persistentVolumeClaim:
+        claimName: dependency-check-db

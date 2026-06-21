@@ -23,10 +23,19 @@ spec:
 
         CACHE_DIR="$(workspaces.cache.path)/nvd-data"
 
-        if [ -f "${CACHE_DIR}/odc.mv.db" ]; then
-          AGE=$(find "${CACHE_DIR}" -name "*.mv.db" -mtime +7)
+        echo "=== CACHE_DIR ==="
+        echo "${CACHE_DIR}"
 
-          if [ -z "$AGE" ]; then
+        echo "=== FILES ==="
+        find "${CACHE_DIR}" -type f -ls || true
+
+        echo "=== SIZE ==="
+        du -sh "${CACHE_DIR}" || true
+
+        if [ -s "${CACHE_DIR}/odc.mv.db" ]; then
+          echo "Found existing DB"
+
+          if find "${CACHE_DIR}" -name "*.mv.db" -mtime -7 | grep -q .; then
             echo "DB is fresh"
             exit 0
           fi

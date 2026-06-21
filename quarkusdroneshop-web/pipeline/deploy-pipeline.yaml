@@ -26,6 +26,8 @@ spec:
       value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
+    - name: dependency-check-cache
+      description: "NVD DB (dependency-check-db PVC, CronJob で毎日更新)"
   tasks:
 
     - name: owasp-dependency-check-update
@@ -33,8 +35,7 @@ spec:
         name: owasp-dependency-check-update
       workspaces:
         - name: cache
-          workspace: shared-workspace
-          subPath: nvd-cache
+          workspace: dependency-check-cache
 
     - name: fetch-repository
       params:
@@ -97,8 +98,7 @@ spec:
         - name: source
           workspace: shared-workspace
         - name: cache
-          workspace: shared-workspace
-          subPath: nvd-cache
+          workspace: dependency-check-cache
 
     - name: print-csv-table
       runAfter:
@@ -211,3 +211,22 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: build-and-push-quarkusdroneshop-web
+  namespace: quarkusdroneshop-cicd
+spec:
+  pipelineRef:
+    name: build-and-push-quarkusdroneshop-web
+  params:
+    - name: IMAGE_TAG
+      value: latest
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: quarkusdroneshop-web-shared-workspace-pvc
+    - name: dependency-check-cache
+      persistentVolumeClaim:
+        claimName: dependency-check-db

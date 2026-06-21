@@ -11,7 +11,32 @@ spec:
       description: Image Tag Value
       name: IMAGE_TAG
       type: string
+  results:
+    - name: junit
+      description: JUnit test result summary
+      value: $(tasks.pipeline-summary.results.junit)
+    - name: semgrep
+      description: Semgrep SAST result summary
+      value: $(tasks.pipeline-summary.results.semgrep)
+    - name: owasp
+      description: OWASP Dependency-Check result summary
+      value: $(tasks.pipeline-summary.results.owasp)
+    - name: report-url
+      description: Test report URL
+      value: $(tasks.pipeline-summary.results.report-url)
+  workspaces:
+    - name: shared-workspace
+    - name: dependency-check-cache
+      description: "NVD DB (dependency-check-db PVC, CronJob で毎日更新)"
   tasks:
+
+    - name: owasp-dependency-check-update
+      taskRef:
+        name: owasp-dependency-check-update
+      workspaces:
+        - name: cache
+          workspace: dependency-check-cache
+
     - name: fetch-repository
       params:
         - name: url
@@ -27,7 +52,110 @@ spec:
         - name: output
           workspace: shared-workspace
 
+    - name: semgrep-scan
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: semgrep-scan
+      params:
+        - name: RULES
+          value: "p/java,p/owasp-top-ten,p/secrets"
+        - name: FAIL_ON_FINDINGS
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: owasp-dependency-check
+      runAfter:
+        - semgrep-scan
+        - owasp-dependency-check-update
+      taskRef:
+        kind: Task
+        name: owasp-dependency-check
+      params:
+        - name: FAIL_ON_CVSS
+          value: "8"
+        - name: NVD_API_DELAY
+          value: "16000"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: cache
+          workspace: dependency-check-cache
+
+    - name: print-csv-table
+      runAfter:
+        - owasp-dependency-check
+      taskRef:
+        kind: Task
+        name: print-csv-table
+      params:
+        - name: TITLE
+          value: "homeoffice-ui テスト結果サマリー"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: publish-test-report
+      runAfter:
+        - print-csv-table
+      taskRef:
+        kind: Task
+        name: publish-test-report
+      params:
+        - name: APP_NAME
+          value: homeoffice-ui
+        - name: CONTEXT_DIR
+          value: .
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: pipeline-summary
+      runAfter:
+        - publish-test-report
+      taskRef:
+        kind: Task
+        name: pipeline-summary
+      params:
+        - name: APP_NAME
+          value: homeoffice-ui
+        - name: TEST_TOTAL
+          value: $(tasks.print-csv-table.results.total-tests)
+        - name: TEST_PASSED
+          value: $(tasks.print-csv-table.results.passed)
+        - name: TEST_FAILURES
+          value: $(tasks.print-csv-table.results.failures)
+        - name: TEST_ERRORS
+          value: $(tasks.print-csv-table.results.errors)
+        - name: SEMGREP_HIGH
+          value: $(tasks.semgrep-scan.results.high)
+        - name: SEMGREP_MEDIUM
+          value: $(tasks.semgrep-scan.results.medium)
+        - name: SEMGREP_LOW
+          value: $(tasks.semgrep-scan.results.low)
+        - name: SEMGREP_TOTAL
+          value: $(tasks.semgrep-scan.results.total)
+        - name: OWASP_CRITICAL
+          value: $(tasks.owasp-dependency-check.results.critical)
+        - name: OWASP_HIGH
+          value: $(tasks.owasp-dependency-check.results.high)
+        - name: OWASP_MEDIUM
+          value: $(tasks.owasp-dependency-check.results.medium)
+        - name: OWASP_LOW
+          value: $(tasks.owasp-dependency-check.results.low)
+        - name: OWASP_TOTAL
+          value: $(tasks.owasp-dependency-check.results.total)
+        - name: REPORT_URL
+          value: $(tasks.publish-test-report.results.report-url)
+
     - name: push-oc-apps
+      runAfter:
+        - fetch-repository
+      taskRef:
+        name: push-app-task
       params:
         - name: SCRIPT
           value: |
@@ -141,26 +269,26 @@ spec:
               ]'
 
             npm test
-            npm run test:e2e 
-
-      runAfter:
-        - fetch-repository
-      taskRef:
-        name: push-app-task
+            npm run test:e2e
       workspaces:
         - name: source
           workspace: shared-workspace
-  workspaces:
-  - name: shared-workspace
 ---
-apiVersion: v1
-kind: Service
+apiVersion: tekton.dev/v1
+kind: PipelineRun
 metadata:
-  name: homeoffice-ui
+  name: build-and-push-quarkusdroneshop-homeoffice-ui
+  namespace: quarkusdroneshop-cicd
 spec:
-  selector:
-    app: homeoffice-ui
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080  # アプリが使用しているポートに合わせて調整
+  pipelineRef:
+    name: build-and-push-quarkusdroneshop-homeoffice-ui
+  params:
+    - name: IMAGE_TAG
+      value: latest
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: quarkusdroneshop-homeoffice-ui-shared-workspace-pvc
+    - name: dependency-check-cache
+      persistentVolumeClaim:
+        claimName: dependency-check-db
