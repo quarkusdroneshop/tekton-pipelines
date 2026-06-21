@@ -168,7 +168,7 @@ spec:
 
     - name: push-oc-apps
       runAfter:
-        - publish-test-report
+        - print-csv-table
       taskRef:
         name: push-app-task
       params:
