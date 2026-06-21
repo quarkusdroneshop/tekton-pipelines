@@ -72,7 +72,7 @@ spec:
         - semgrep-scan
       taskRef:
         kind: Task
-        name: maven-no-settings11
+        name: maven-no-settings21
       params:
         - name: CONTEXT_DIR
           value: .
@@ -179,7 +179,7 @@ spec:
 
             oc delete all -l app=reward -n quarkusdroneshop-demo || true
             oc delete bc/reward -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=reward --image-stream=java:openjdk-17-ubi8 -n quarkusdroneshop-demo
+            oc new-build --binary --name=reward --image-stream=java:openjdk-21-ubi8 -n quarkusdroneshop-demo
             oc start-build reward --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app reward --name=reward --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/reward JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
