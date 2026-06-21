@@ -16,10 +16,16 @@ spec:
             secretKeyRef:
               name: nvd-api-key
               key: key
+              optional: true
 
       script: |
         #!/bin/sh
         set -e
+
+        if [ -z "${NVD_API_KEY}" ]; then
+          echo "NVD_API_KEY が設定されていません (nvd-api-key Secret なし) - スキップします"
+          exit 0
+        fi
 
         CACHE_DIR="$(workspaces.cache.path)/nvd-data"
 
