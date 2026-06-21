@@ -102,7 +102,7 @@ spec:
 
     - name: print-csv-table
       runAfter:
-        - pipeline-summary
+        - owasp-dependency-check
       taskRef:
         kind: Task
         name: print-csv-table
