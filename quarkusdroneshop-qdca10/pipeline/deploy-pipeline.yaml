@@ -72,7 +72,7 @@ spec:
         - semgrep-scan
       taskRef:
         kind: Task
-        name: maven-no-settings11
+        name: maven-no-settings21
       params:
         - name: CONTEXT_DIR
           value: .
@@ -168,7 +168,7 @@ spec:
 
     - name: push-oc-apps
       runAfter:
-        - maven-run
+        - owasp-dependency-check
       taskRef:
         name: push-app-task
       params:

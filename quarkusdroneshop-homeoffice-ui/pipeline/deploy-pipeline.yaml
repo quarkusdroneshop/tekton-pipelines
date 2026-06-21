@@ -288,7 +288,7 @@ spec:
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
-        claimName: quarkusdroneshop-homeoffice-ui-shared-workspace-pvc
+        claimName: homeoffice-pipeline-cache
     - name: dependency-check-cache
       persistentVolumeClaim:
         claimName: dependency-check-db
