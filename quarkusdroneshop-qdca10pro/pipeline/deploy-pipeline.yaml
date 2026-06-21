@@ -179,7 +179,7 @@ spec:
 
             oc delete all -l app=qdca10pro -n quarkusdroneshop-demo || true
             oc delete bc/qdca10pro -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=qdca10pro --image-stream=java:openjdk-21-ubi8 -n quarkusdroneshop-demo
+            oc new-build --binary --name=qdca10pro --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
             oc start-build qdca10pro --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app qdca10pro --name=qdca10pro --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/qdca10pro JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo

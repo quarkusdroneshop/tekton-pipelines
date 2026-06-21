@@ -184,7 +184,7 @@ spec:
             oc delete bc/homeoffice-backend -n quarkusdroneshop-demo || true
             oc delete istag homeoffice-backend:latest -n quarkusdroneshop-demo || true
 
-            oc new-build --binary --name=homeoffice-backend --image-stream=java:openjdk-21-ubi8 -n quarkusdroneshop-demo
+            oc new-build --binary --name=homeoffice-backend --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
             oc start-build homeoffice-backend --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app homeoffice-backend --name=homeoffice-backend --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/homeoffice-backend JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo

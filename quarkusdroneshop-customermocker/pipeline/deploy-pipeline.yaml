@@ -179,7 +179,7 @@ spec:
 
             oc delete all -l app=customermocker -n quarkusdroneshop-demo || true
             oc delete bc/customermocker -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=customermocker --image-stream=java:openjdk-21-ubi8 -n quarkusdroneshop-demo
+            oc new-build --binary --name=customermocker --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
             oc start-build customermocker --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app customermocker --name=customermocker --allow-missing-images -n quarkusdroneshop-demo
             oc set env deployment/customermocker JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
