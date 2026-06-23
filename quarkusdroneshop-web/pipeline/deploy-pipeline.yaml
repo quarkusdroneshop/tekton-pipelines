@@ -5,6 +5,7 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-web
+    backstage.io/kubernetes-id: quarkusdroneshop-web
 spec:
   params:
     - default: latest
@@ -102,6 +103,7 @@ spec:
           workspace: dependency-check-cache
 
     - name: print-csv-table
+      onError: continue
       runAfter:
         - owasp-dependency-check
       taskRef:
@@ -180,12 +182,13 @@ spec:
 
             oc delete all -l app=web -n quarkusdroneshop-demo || true
             oc delete bc/web -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=web --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
+            oc new-build --binary --name=web --docker-image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc patch bc/web -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build web --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app web --name=web --allow-missing-images -n quarkusdroneshop-demo
-            oc set env deployment/web JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
-            oc expose deployment web --port=8080 --name=quarkusdroneshop-web -n quarkusdroneshop-demo
-            oc expose svc quarkusdroneshop-web --name=quarkusdroneshop-web -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
+            oc expose deployment web --port=8080 --name=web -n quarkusdroneshop-demo
+            oc expose svc quarkusdroneshop-web --name=web -n quarkusdroneshop-demo
 
             CONFIG_CORS_ORIGINS=$(oc get route quarkusdroneshop-web -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)
             CONFIG_LOYALTY_STREAM_URL=$(oc get route quarkusdroneshop-web -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)/dashboard/loyaltystream
@@ -197,18 +200,18 @@ spec:
             oc patch configmap droneshop-config -n quarkusdroneshop-demo -p "{\"data\":{\"REWARD_STREAM_URL\":\"http://$CONFIG_REWARD_STREAM_URL\"}}"
 
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
-            oc set env deployment/web KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
 
             STREAM_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.STREAM_URL}')
-            oc set env deployment/web STREAM_URL=$STREAM_URL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web STREAM_URL=$STREAM_URL -n quarkusdroneshop-demo
             LOYALTY_STREAM_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.LOYALTY_STREAM_URL}')
-            oc set env deployment/web LOYALTY_STREAM_URL=$LOYALTY_STREAM_URL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web LOYALTY_STREAM_URL=$LOYALTY_STREAM_URL -n quarkusdroneshop-demo
             CORS_ORIGINS=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.CORS_ORIGINS}')
-            oc set env deployment/web CORS_ORIGINS=$CORS_ORIGINS -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web CORS_ORIGINS=$CORS_ORIGINS -n quarkusdroneshop-demo
             STORE_ID=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.STORE_ID}')
-            oc set env deployment/web STORE_ID=$STORE_ID -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web STORE_ID=$STORE_ID -n quarkusdroneshop-demo
             REWARD_STREAM_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.REWARD_STREAM_URL}')
-            oc set env deployment/web REWARD_STREAM_URL=$REWARD_STREAM_URL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-web REWARD_STREAM_URL=$REWARD_STREAM_URL -n quarkusdroneshop-demo
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -218,6 +221,9 @@ kind: PipelineRun
 metadata:
   name: build-and-push-quarkusdroneshop-web
   namespace: quarkusdroneshop-cicd
+  labels:
+    app: quarkusdroneshop-web
+    backstage.io/kubernetes-id: quarkusdroneshop-web
 spec:
   pipelineRef:
     name: build-and-push-quarkusdroneshop-web

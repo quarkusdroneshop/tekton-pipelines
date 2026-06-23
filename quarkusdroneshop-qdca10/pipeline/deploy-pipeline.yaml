@@ -5,6 +5,7 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-qdca10
+    backstage.io/kubernetes-id: quarkusdroneshop-qdca10
 spec:
   params:
     - default: latest
@@ -102,6 +103,7 @@ spec:
           workspace: dependency-check-cache
 
     - name: print-csv-table
+      onError: continue
       runAfter:
         - owasp-dependency-check
       taskRef:
@@ -180,17 +182,18 @@ spec:
 
             oc delete all -l app=qdca10 -n quarkusdroneshop-demo || true
             oc delete bc/qdca10 -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=qdca10 --image-stream=ubi8-openjdk-21:1.18 -n quarkusdroneshop-demo
+            oc new-build --binary --name=qdca10 --docker-image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc patch bc/qdca10 -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build qdca10 --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app qdca10 --name=qdca10 --allow-missing-images -n quarkusdroneshop-demo
-            oc set env deployment/qdca10 JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-qdca10 JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
 
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
-            oc set env deployment/qdca10 KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-qdca10 KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
             QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
-            oc set env deployment/qdca10 QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-qdca10 QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
             QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
-            oc set env deployment/qdca10 QUARKUSDRONESHOP_LOG_LEVEL=$QUARKUSDRONESHOP_LOG_LEVEL -n quarkusdroneshop-demo
+            oc set env deployment/quarkusdroneshop-qdca10 QUARKUSDRONESHOP_LOG_LEVEL=$QUARKUSDRONESHOP_LOG_LEVEL -n quarkusdroneshop-demo
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -200,6 +203,9 @@ kind: PipelineRun
 metadata:
   name: build-and-push-quarkusdroneshop-qdca10
   namespace: quarkusdroneshop-cicd
+  labels:
+    app: quarkusdroneshop-qdca10
+    backstage.io/kubernetes-id: quarkusdroneshop-qdca10
 spec:
   pipelineRef:
     name: build-and-push-quarkusdroneshop-qdca10

@@ -5,6 +5,7 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-homeoffice-ui
+    backstage.io/kubernetes-id: quarkusdroneshop-homeoffice-ui
 spec:
   params:
     - default: latest
@@ -87,6 +88,7 @@ spec:
           workspace: dependency-check-cache
 
     - name: print-csv-table
+      onError: continue
       runAfter:
         - owasp-dependency-check
       taskRef:
@@ -280,6 +282,9 @@ kind: PipelineRun
 metadata:
   name: build-and-push-quarkusdroneshop-homeoffice-ui
   namespace: quarkusdroneshop-cicd
+  labels:
+    app: quarkusdroneshop-homeoffice-ui
+    backstage.io/kubernetes-id: quarkusdroneshop-homeoffice-ui
 spec:
   pipelineRef:
     name: build-and-push-quarkusdroneshop-homeoffice-ui
