@@ -5,6 +5,8 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-qdca10pro
+    app.kubernetes.io/instance: quarkusdroneshop-qdca10pro
+    app.kubernetes.io/part-of: quarkusdroneshop
     backstage.io/kubernetes-id: quarkusdroneshop-qdca10pro
 spec:
   params:
@@ -205,6 +207,8 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-qdca10pro
+    app.kubernetes.io/instance: quarkusdroneshop-qdca10pro
+    app.kubernetes.io/part-of: quarkusdroneshop
     backstage.io/kubernetes-id: quarkusdroneshop-qdca10pro
 spec:
   pipelineRef:
