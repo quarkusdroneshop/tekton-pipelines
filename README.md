@@ -132,3 +132,56 @@ YAML
 ## RHEL Edge Pipelines
 **quarkusdroneshop-majestic-monolith tekton pipeline**   
 [quarkusdroneshop-majestic-monolith](quarkusdroneshop-majestic-monolith/README.md)
+
+## Pipeline の構成
+
+        ソースコード（Git / PR / Push）
+                      │
+                      ▼
+                CIパイプライン
+                      │
+                      ▼
+                  Maven Build
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+        ▼                           ▼
+   Maven Test                 静的解析（詳細）
+                                   │
+        ┌──────────────────────────┼──────────────────────────┐
+        │                          │                          │
+        ▼                          ▼                          ▼
+ Checkstyle                PMD / SpotBugs              Semgrep SAST
+（コーディング規約）        （バグ・設計欠陥）          （セキュリティ脆弱性）
+        │                          │                          │
+        ▼                          ▼                          ▼
+ JaCoCo                      ArchUnit / ArchRules      Secret Scan
+（テストカバレッジ）          （アーキテクチャ違反）     （認証情報・APIキー漏洩）
+                                   │
+                                   ▼
+                            Dependency Check
+                              （CVE検出）
+                                   │
+                                   ▼
+                              Wapiti（DAST）
+                      （動的Webアプリ診断）
+                                   │
+                                   ▼
+                        品質ゲート（Quality Gate）
+                                   │
+                                   ▼
+                    コンテナビルド & Push
+              （OpenShift / Image Registry）
+                                   │
+                                   ▼
+                      デプロイ（OpenShift）
+                                   │
+                                   ▼
+        ┌─────────────────────────────────────────┐
+        │                                         │
+        ▼                                         ▼
+ Backend API（Quarkus / Camel）          [Qute Web](chatgpt://generic-entity?number=0)
+        │                                         │
+        └──────────────────┬──────────────────────┘
+                           ▼
+                 ユーザー向けWeb画面
