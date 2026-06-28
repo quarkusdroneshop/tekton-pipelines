@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: maven-cache-pvc
+  namespace: quarkusdroneshop-cicd
+  labels:
+    app.kubernetes.io/part-of: quarkusdroneshop
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,4 +1,5 @@
 resources:
+- pvc/maven-cache-pvc.yaml
 - tasks/git-clone.yaml
 - tasks/maven11.yaml
 - tasks/maven17.yaml

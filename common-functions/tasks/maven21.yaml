@@ -16,6 +16,9 @@ spec:
   workspaces:
     - name: source
       description: The workspace containing the Maven project.
+    - name: maven-cache
+      description: Maven local repository cache (.m2) to avoid repeated downloads
+      optional: true
   steps:
     - name: mvn
       image: registry.access.redhat.com/ubi9/openjdk-21
@@ -23,4 +26,10 @@ spec:
       script: |
         #!/bin/sh
         echo "Running mvn $(params.GOALS)"
-        mvn $(params.GOALS)
+        if [ "$(workspaces.maven-cache.bound)" = "true" ]; then
+          REPO_DIR="$(workspaces.maven-cache.path)/repository"
+          mkdir -p "${REPO_DIR}"
+          mvn $(params.GOALS) -Dmaven.repo.local="${REPO_DIR}"
+        else
+          mvn $(params.GOALS)
+        fi

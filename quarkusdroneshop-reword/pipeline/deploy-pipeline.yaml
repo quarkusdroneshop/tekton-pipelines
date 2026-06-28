@@ -26,6 +26,7 @@ spec:
       value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
+    - name: maven-cache
   tasks:
 
     - name: fetch-repository
@@ -109,6 +110,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: pmd-run
       onError: continue
@@ -125,6 +128,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: maven-unit-test
       runAfter:
@@ -140,6 +145,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: spotbugs-run
       onError: continue
@@ -157,6 +164,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: maven-e2e-test
       onError: continue
@@ -173,6 +182,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: wapiti-scan
       onError: continue
@@ -206,6 +217,8 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
 
     - name: print-csv-table
       onError: continue
@@ -319,3 +332,6 @@ spec:
     - name: shared-workspace
       persistentVolumeClaim:
         claimName: quarkusdroneshop-reword-shared-workspace-pvc
+    - name: maven-cache
+      persistentVolumeClaim:
+        claimName: maven-cache-pvc
