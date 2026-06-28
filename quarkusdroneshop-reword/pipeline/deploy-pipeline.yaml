@@ -133,7 +133,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean test -Dquarkus.package.type=uber-jar"
+          value: "clean verify -DskipITs -Dquarkus.package.type=uber-jar"
       workspaces:
         - name: source
           workspace: shared-workspace

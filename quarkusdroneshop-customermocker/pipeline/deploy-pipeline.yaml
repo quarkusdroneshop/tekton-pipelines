@@ -133,7 +133,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean test"
+          value: "clean verify -DskipITs"
       workspaces:
         - name: source
           workspace: shared-workspace
