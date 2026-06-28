@@ -5,11 +5,11 @@ metadata:
   namespace: quarkusdroneshop-cicd
 spec:
   description: >
-    Trivy による SCA（ソフトウェア構成解析）。
-    pom.xml / package.json の依存ライブラリの CVE・ライセンス・設定ミスを検出する。
+    Trivy による SCA スキャン。
+    pom.xml / package.json の依存ライブラリの CVE を検出する。
   params:
     - name: SCANNERS
-      description: 有効化するスキャナ（カンマ区切り: vuln,secret,misconfig,license）
+      description: "有効化するスキャナ (vuln,secret,misconfig,license)"
       type: string
       default: "vuln,secret"
     - name: EXIT_CODE
@@ -17,15 +17,15 @@ spec:
       type: string
       default: "0"
     - name: IGNOREFILE
-      description: 無視リストファイルパス（存在しなければ無視）
+      description: "無視リストファイルパス"
       type: string
       default: ".trivyignore.yaml"
     - name: OUTPUT_FILE
-      description: レポート出力パス（workspace 内相対パス）
+      description: "レポート出力パス"
       type: string
       default: "target/trivy.txt"
     - name: SEVERITY
-      description: 報告する重大度（カンマ区切り）
+      description: "報告する重大度"
       type: string
       default: "CRITICAL,HIGH,MEDIUM"
   workspaces:
@@ -35,38 +35,47 @@ spec:
     - name: scan
       image: aquasec/trivy:latest
       workingDir: $(workspaces.source.path)
+      env:
+        - name: OUTPUT_FILE
+          value: $(workspaces.source.path)/$(params.OUTPUT_FILE)
+        - name: IGNOREFILE
+          value: $(workspaces.source.path)/$(params.IGNOREFILE)
+        - name: SCANNERS
+          value: $(params.SCANNERS)
+        - name: EXIT_CODE_PARAM
+          value: $(params.EXIT_CODE)
+        - name: SEVERITY
+          value: $(params.SEVERITY)
       script: |
         #!/bin/sh
         set -e
 
         echo "=============================================="
         echo " Trivy SCA スキャン開始"
-        echo " スキャナ: $(params.SCANNERS)"
+        echo " スキャナ: ${SCANNERS}"
         echo "=============================================="
 
-        OUTPUT_FILE="$(workspaces.source.path)/$(params.OUTPUT_FILE)"
         mkdir -p "$(dirname "${OUTPUT_FILE}")"
         chmod -R 777 "$(dirname "${OUTPUT_FILE}")"
 
         IGNORE_OPTS=""
-        if [ -f "$(workspaces.source.path)/$(params.IGNOREFILE)" ]; then
-          IGNORE_OPTS="--ignorefile $(workspaces.source.path)/$(params.IGNOREFILE)"
+        if [ -f "${IGNOREFILE}" ]; then
+          IGNORE_OPTS="--ignorefile ${IGNOREFILE}"
         fi
 
         trivy fs \
-          --scanners "$(params.SCANNERS)" \
-          --severity "$(params.SEVERITY)" \
-          --exit-code "$(params.EXIT_CODE)" \
+          --scanners "${SCANNERS}" \
+          --severity "${SEVERITY}" \
+          --exit-code "${EXIT_CODE_PARAM}" \
           --format table \
           --output "${OUTPUT_FILE}" \
           ${IGNORE_OPTS} \
           "$(workspaces.source.path)" \
-          || SCAN_EXIT=$?
+          || true
 
         echo "=============================================="
-        echo " スキャン完了: $(params.OUTPUT_FILE)"
+        echo " スキャン完了"
         if [ -f "${OUTPUT_FILE}" ]; then
-          echo "--- 結果サマリー ---"
-          grep -E "^Total:|CRITICAL|HIGH" "${OUTPUT_FILE}" | head -20 || true
+          grep -E "^Total:|CRITICAL|HIGH" "${OUTPUT_FILE}" | head -10 || true
         fi
         echo "=============================================="

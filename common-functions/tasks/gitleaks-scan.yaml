@@ -27,6 +27,13 @@ spec:
     - name: scan
       image: ghcr.io/gitleaks/gitleaks:latest
       workingDir: $(workspaces.source.path)
+      env:
+        - name: REPORT_PATH
+          value: $(workspaces.source.path)/$(params.REPORT_PATH)
+        - name: EXIT_CODE_PARAM
+          value: $(params.EXIT_CODE)
+        - name: REPORT_FORMAT
+          value: $(params.REPORT_FORMAT)
       script: |
         #!/bin/sh
         set -e
@@ -35,43 +42,22 @@ spec:
         echo " Gitleaks シークレットスキャン開始"
         echo "=============================================="
 
-        REPORT_PATH="$(workspaces.source.path)/$(params.REPORT_PATH)"
         mkdir -p "$(dirname "${REPORT_PATH}")"
         chmod -R 777 "$(dirname "${REPORT_PATH}")"
 
         gitleaks detect \
           --source "$(workspaces.source.path)" \
-          --report-format "$(params.REPORT_FORMAT)" \
+          --report-format "${REPORT_FORMAT}" \
           --report-path "${REPORT_PATH}" \
-          --exit-code "$(params.EXIT_CODE)" \
+          --exit-code "${EXIT_CODE_PARAM}" \
           --no-git \
           --verbose \
-          || EXIT_CODE=$?
+          || true
 
         echo "=============================================="
         if [ -f "${REPORT_PATH}" ]; then
-          COUNT=$(python3 -c "
-import json, sys
-try:
-    data = json.load(open('${REPORT_PATH}'))
-    print(len(data) if isinstance(data, list) else 0)
-except:
-    print(0)
-")
+          COUNT=$(grep -c '"RuleID"' "${REPORT_PATH}" 2>/dev/null || echo "0")
           echo " 検出件数: ${COUNT}"
-          if [ "${COUNT}" -gt 0 ]; then
-            echo " 警告: シークレットが検出されました！"
-            python3 -c "
-import json
-data = json.load(open('${REPORT_PATH}'))
-for i, item in enumerate(data[:10], 1):
-    print(f'[{i}] Rule: {item.get(\"RuleID\", \"?\")}')
-    print(f'    File: {item.get(\"File\", \"?\")}:{item.get(\"StartLine\", \"?\")}')
-    print(f'    Match: {str(item.get(\"Secret\", \"?\"))[:40]}...')
-    print()
-"
-          fi
         fi
-        echo "=============================================="
         echo " Gitleaks スキャン完了"
         echo "=============================================="
