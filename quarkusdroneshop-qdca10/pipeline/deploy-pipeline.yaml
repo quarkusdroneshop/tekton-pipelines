@@ -45,7 +45,7 @@ spec:
 
     - name: semgrep-scan
       runAfter:
-        - fetch-repository
+        - pmd-run
       taskRef:
         kind: Task
         name: semgrep-scan
@@ -61,7 +61,7 @@ spec:
     - name: gitleaks-scan
       onError: continue
       runAfter:
-        - fetch-repository
+        - semgrep-scan
       taskRef:
         kind: Task
         name: gitleaks-scan
@@ -79,7 +79,7 @@ spec:
     - name: trivy-scan
       onError: continue
       runAfter:
-        - fetch-repository
+        - gitleaks-scan
       taskRef:
         kind: Task
         name: trivy-scan
@@ -113,7 +113,7 @@ spec:
     - name: pmd-run
       onError: continue
       runAfter:
-        - fetch-repository
+        - checkstyle-run
       taskRef:
         kind: Task
         name: maven-no-settings21
@@ -144,6 +144,7 @@ spec:
     - name: spotbugs-run
       onError: continue
       runAfter:
+        - trivy-scan
         - maven-unit-test
       taskRef:
         kind: Task
@@ -160,7 +161,7 @@ spec:
     - name: maven-e2e-test
       onError: continue
       runAfter:
-        - spotbugs-run
+        - maven-unit-test
       taskRef:
         kind: Task
         name: maven-no-settings21
@@ -193,6 +194,7 @@ spec:
       onError: continue
       runAfter:
         - wapiti-scan
+        - spotbugs-run
       taskRef:
         kind: Task
         name: maven-no-settings21
