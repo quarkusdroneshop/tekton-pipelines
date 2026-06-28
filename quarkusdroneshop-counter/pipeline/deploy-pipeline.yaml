@@ -7,6 +7,7 @@ metadata:
     app: quarkusdroneshop-counter
     app.kubernetes.io/instance: quarkusdroneshop-counter
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-counter
     backstage.io/kubernetes-id: quarkusdroneshop-counter
 spec:
   params:
@@ -320,6 +321,7 @@ metadata:
     app: quarkusdroneshop-counter
     app.kubernetes.io/instance: quarkusdroneshop-counter
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-counter
     backstage.io/kubernetes-id: quarkusdroneshop-counter
 spec:
   pipelineRef:

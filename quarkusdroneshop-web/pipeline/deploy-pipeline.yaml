@@ -7,6 +7,7 @@ metadata:
     app: quarkusdroneshop-web
     app.kubernetes.io/instance: quarkusdroneshop-web
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-web
     backstage.io/kubernetes-id: quarkusdroneshop-web
 spec:
   params:
@@ -349,6 +350,7 @@ metadata:
     app: quarkusdroneshop-web
     app.kubernetes.io/instance: quarkusdroneshop-web
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-web
     backstage.io/kubernetes-id: quarkusdroneshop-web
 spec:
   pipelineRef:

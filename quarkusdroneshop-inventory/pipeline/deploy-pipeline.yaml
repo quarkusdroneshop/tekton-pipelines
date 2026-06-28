@@ -7,6 +7,7 @@ metadata:
     app: quarkusdroneshop-inventory
     app.kubernetes.io/instance: quarkusdroneshop-inventory
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-inventory
     backstage.io/kubernetes-id: quarkusdroneshop-inventory
 spec:
   params:
@@ -320,6 +321,7 @@ metadata:
     app: quarkusdroneshop-inventory
     app.kubernetes.io/instance: quarkusdroneshop-inventory
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-inventory
     backstage.io/kubernetes-id: quarkusdroneshop-inventory
 spec:
   pipelineRef:

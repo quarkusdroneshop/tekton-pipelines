@@ -7,6 +7,7 @@ metadata:
     app: quarkusdroneshop-homeoffice-ui
     app.kubernetes.io/instance: quarkusdroneshop-homeoffice-ui
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-homeoffice-ui
     backstage.io/kubernetes-id: quarkusdroneshop-homeoffice-ui
 spec:
   params:
@@ -247,6 +248,7 @@ metadata:
     app: quarkusdroneshop-homeoffice-ui
     app.kubernetes.io/instance: quarkusdroneshop-homeoffice-ui
     app.kubernetes.io/part-of: quarkusdroneshop
+    tekton.dev/pipeline: build-and-push-quarkusdroneshop-homeoffice-ui
     backstage.io/kubernetes-id: quarkusdroneshop-homeoffice-ui
 spec:
   pipelineRef:
