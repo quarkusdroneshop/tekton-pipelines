@@ -55,7 +55,7 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: maven-run
+    - name: maven-unit-test
       runAfter:
         - fetch-repository
       taskRef:
@@ -65,7 +65,23 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean verify -Dquarkus.package.type=uber-jar"
+          value: "clean test -Dquarkus.package.type=uber-jar"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: maven-e2e-test
+      onError: continue
+      runAfter:
+        - maven-unit-test
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "verify -DskipTests -Dquarkus.package.type=uber-jar"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -73,7 +89,7 @@ spec:
     - name: print-csv-table
       onError: continue
       runAfter:
-        - maven-run
+        - maven-e2e-test
       taskRef:
         kind: Task
         name: print-csv-table

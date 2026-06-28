@@ -61,7 +61,7 @@ spec:
     - name: print-csv-table
       onError: continue
       runAfter:
-        - maven-run
+        - semgrep-scan
       taskRef:
         kind: Task
         name: print-csv-table
