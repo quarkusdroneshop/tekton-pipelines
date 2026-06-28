@@ -166,7 +166,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "verify -DskipTests -Dquarkus.package.type=uber-jar"
+          value: "test-compile failsafe:integration-test failsafe:verify -Dquarkus.package.type=uber-jar -Dit.test='!WebTestItemE2EWrapperIT'"
       workspaces:
         - name: source
           workspace: shared-workspace
