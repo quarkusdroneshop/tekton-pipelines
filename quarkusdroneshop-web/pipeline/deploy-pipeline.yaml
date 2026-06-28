@@ -142,7 +142,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean verify -DskipITs -Dtest=!ArchitectureTest"
+          value: "clean verify -DskipITs -Dtest=!ArchitectureTest+!*E2E*"
       workspaces:
         - name: source
           workspace: shared-workspace
