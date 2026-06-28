@@ -58,6 +58,42 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: gitleaks-scan
+      onError: continue
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: gitleaks-scan
+      params:
+        - name: REPORT_FORMAT
+          value: "json"
+        - name: REPORT_PATH
+          value: "target/gitleaks-report.json"
+        - name: EXIT_CODE
+          value: "0"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: trivy-scan
+      onError: continue
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: trivy-scan
+      params:
+        - name: SCANNERS
+          value: "vuln,secret"
+        - name: EXIT_CODE
+          value: "0"
+        - name: OUTPUT_FILE
+          value: "target/trivy.txt"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: checkstyle-run
       onError: continue
       runAfter:

@@ -1,0 +1,77 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: gitleaks-scan
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    Gitleaks によるシークレットスキャン。
+    Git リポジトリのソースコードから認証情報・APIキー等の漏洩を検出する。
+  params:
+    - name: REPORT_FORMAT
+      description: レポート出力形式 (json / csv / junit / sarif)
+      type: string
+      default: "json"
+    - name: REPORT_PATH
+      description: レポート出力パス（workspace 内相対パス）
+      type: string
+      default: "target/gitleaks-report.json"
+    - name: EXIT_CODE
+      description: "検出時の終了コード (0=継続 / 1=失敗)"
+      type: string
+      default: "0"
+  workspaces:
+    - name: source
+      description: スキャン対象のソースコード
+  steps:
+    - name: scan
+      image: ghcr.io/gitleaks/gitleaks:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -e
+
+        echo "=============================================="
+        echo " Gitleaks シークレットスキャン開始"
+        echo "=============================================="
+
+        REPORT_PATH="$(workspaces.source.path)/$(params.REPORT_PATH)"
+        mkdir -p "$(dirname "${REPORT_PATH}")"
+        chmod -R 777 "$(dirname "${REPORT_PATH}")"
+
+        gitleaks detect \
+          --source "$(workspaces.source.path)" \
+          --report-format "$(params.REPORT_FORMAT)" \
+          --report-path "${REPORT_PATH}" \
+          --exit-code "$(params.EXIT_CODE)" \
+          --no-git \
+          --verbose \
+          || EXIT_CODE=$?
+
+        echo "=============================================="
+        if [ -f "${REPORT_PATH}" ]; then
+          COUNT=$(python3 -c "
+import json, sys
+try:
+    data = json.load(open('${REPORT_PATH}'))
+    print(len(data) if isinstance(data, list) else 0)
+except:
+    print(0)
+")
+          echo " 検出件数: ${COUNT}"
+          if [ "${COUNT}" -gt 0 ]; then
+            echo " 警告: シークレットが検出されました！"
+            python3 -c "
+import json
+data = json.load(open('${REPORT_PATH}'))
+for i, item in enumerate(data[:10], 1):
+    print(f'[{i}] Rule: {item.get(\"RuleID\", \"?\")}')
+    print(f'    File: {item.get(\"File\", \"?\")}:{item.get(\"StartLine\", \"?\")}')
+    print(f'    Match: {str(item.get(\"Secret\", \"?\"))[:40]}...')
+    print()
+"
+          fi
+        fi
+        echo "=============================================="
+        echo " Gitleaks スキャン完了"
+        echo "=============================================="
