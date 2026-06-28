@@ -5,9 +5,9 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-homeofficebackend
-    app.kubernetes.io/instance: quarkusdroneshop-homeoffice
+    app.kubernetes.io/instance: quarkusdroneshop-homeofficebackend
     app.kubernetes.io/part-of: quarkusdroneshop
-    backstage.io/kubernetes-id: quarkusdroneshop-homeoffice
+    backstage.io/kubernetes-id: quarkusdroneshop-homeofficebackend
 spec:
   params:
     - default: latest
@@ -169,23 +169,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "test-compile failsafe:integration-test failsafe:verify -Dit.test=!WebTestItemE2EWrapperIT -Dsurefire.skip=true"
-      workspaces:
-        - name: source
-          workspace: shared-workspace
-
-    - name: playwright-e2e
-      onError: continue
-      runAfter:
-        - push-oc-apps
-      taskRef:
-        kind: Task
-        name: playwright-e2e
-      params:
-        - name: APP_NAME
-          value: "homeoffice-backend"
-        - name: NAMESPACE
-          value: "quarkusdroneshop-demo"
+          value: "test-compile failsafe:integration-test failsafe:verify -Dsurefire.skip=true"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -210,7 +194,6 @@ spec:
       onError: continue
       runAfter:
         - wapiti-scan
-        - playwright-e2e
         - spotbugs-run
       taskRef:
         kind: Task
@@ -343,9 +326,9 @@ metadata:
   namespace: quarkusdroneshop-cicd
   labels:
     app: quarkusdroneshop-homeofficebackend
-    app.kubernetes.io/instance: quarkusdroneshop-homeoffice
+    app.kubernetes.io/instance: quarkusdroneshop-homeofficebackend
     app.kubernetes.io/part-of: quarkusdroneshop
-    backstage.io/kubernetes-id: quarkusdroneshop-homeoffice
+    backstage.io/kubernetes-id: quarkusdroneshop-homeofficebackend
 spec:
   pipelineRef:
     name: build-and-push-quarkusdroneshop-homeofficebackend

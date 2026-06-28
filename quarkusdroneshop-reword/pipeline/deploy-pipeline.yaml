@@ -4,7 +4,10 @@ metadata:
   name: build-and-push-quarkusdroneshop-reward
   namespace: quarkusdroneshop-cicd
   labels:
-    app: quarkusdroneshop-reward
+    app: quarkusdroneshop-reword
+    app.kubernetes.io/instance: quarkusdroneshop-reword
+    app.kubernetes.io/part-of: quarkusdroneshop
+    backstage.io/kubernetes-id: quarkusdroneshop-reword
 spec:
   params:
     - default: latest
@@ -133,7 +136,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean verify -DskipITs -Dquarkus.package.type=uber-jar"
+          value: "clean verify -DskipITs"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -166,23 +169,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "test-compile failsafe:integration-test failsafe:verify -Dit.test=!WebTestItemE2EWrapperIT -Dsurefire.skip=true"
-      workspaces:
-        - name: source
-          workspace: shared-workspace
-
-    - name: playwright-e2e
-      onError: continue
-      runAfter:
-        - push-oc-apps
-      taskRef:
-        kind: Task
-        name: playwright-e2e
-      params:
-        - name: APP_NAME
-          value: "reward"
-        - name: NAMESPACE
-          value: "quarkusdroneshop-demo"
+          value: "test-compile failsafe:integration-test failsafe:verify -Dsurefire.skip=true"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -207,7 +194,6 @@ spec:
       onError: continue
       runAfter:
         - wapiti-scan
-        - playwright-e2e
         - spotbugs-run
       taskRef:
         kind: Task
@@ -318,6 +304,11 @@ kind: PipelineRun
 metadata:
   name: build-and-push-quarkusdroneshop-reward
   namespace: quarkusdroneshop-cicd
+  labels:
+    app: quarkusdroneshop-reword
+    app.kubernetes.io/instance: quarkusdroneshop-reword
+    app.kubernetes.io/part-of: quarkusdroneshop
+    backstage.io/kubernetes-id: quarkusdroneshop-reword
 spec:
   pipelineRef:
     name: build-and-push-quarkusdroneshop-reward

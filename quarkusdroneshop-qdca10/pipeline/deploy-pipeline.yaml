@@ -169,23 +169,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "test-compile failsafe:integration-test failsafe:verify -Dit.test=!WebTestItemE2EWrapperIT -Dsurefire.skip=true"
-      workspaces:
-        - name: source
-          workspace: shared-workspace
-
-    - name: playwright-e2e
-      onError: continue
-      runAfter:
-        - push-oc-apps
-      taskRef:
-        kind: Task
-        name: playwright-e2e
-      params:
-        - name: APP_NAME
-          value: "qdca10"
-        - name: NAMESPACE
-          value: "quarkusdroneshop-demo"
+          value: "test-compile failsafe:integration-test failsafe:verify -Dsurefire.skip=true"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -210,7 +194,6 @@ spec:
       onError: continue
       runAfter:
         - wapiti-scan
-        - playwright-e2e
         - spotbugs-run
       taskRef:
         kind: Task
