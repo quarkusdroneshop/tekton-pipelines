@@ -138,8 +138,16 @@ spec:
                     print(f"  !! 失敗: {su_f} / エラー: {su_e}")
                 print()
 
+            # 統合テストは対象クラスのみ表示
+            INTEGRATION_TESTS = {"ArchitectureTest", "WebTestItemE2EWrapperIT", "OrderFlowE2ETest"}
             if fa_t > 0:
-                render_table(fa_rows, "統合テスト / E2E (Failsafe) ※ src/test/e2e のみ")
+                fa_filtered = [header] + [
+                    r for r in fa_rows[1:-1]
+                    if any(t in str(r[0]) for t in INTEGRATION_TESTS)
+                ]
+                if len(fa_rows) > 1:
+                    fa_filtered.append(fa_rows[-1])
+                render_table(fa_filtered if len(fa_filtered) > 1 else fa_rows, "統合テスト / E2E (Failsafe)")
                 if fa_f > 0 or fa_e > 0:
                     print(f"  !! 失敗: {fa_f} / エラー: {fa_e}")
                 print()

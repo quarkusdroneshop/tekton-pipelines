@@ -141,7 +141,25 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "clean verify -DskipITs"
+          value: "clean verify -DskipITs -Dtest=!ArchitectureTest"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: maven-cache
+          workspace: maven-cache
+
+    - name: maven-arch-test
+      onError: continue
+      runAfter:
+        - maven-unit-test
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "failsafe:integration-test failsafe:verify -Dit.test=ArchitectureTest -Dsurefire.skip=true"
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -152,7 +170,7 @@ spec:
       onError: continue
       runAfter:
         - trivy-scan
-        - maven-unit-test
+        - maven-arch-test
       taskRef:
         kind: Task
         name: maven-no-settings21
@@ -170,7 +188,7 @@ spec:
     - name: maven-e2e-test
       onError: continue
       runAfter:
-        - maven-unit-test
+        - maven-arch-test
       taskRef:
         kind: Task
         name: maven-playwright

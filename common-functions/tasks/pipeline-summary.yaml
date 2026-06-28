@@ -129,42 +129,12 @@ spec:
         JST = timezone(timedelta(hours=9))
         now_str = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S JST")
 
-        total_w = 72
-        print("=" * total_w)
-        print(f"  PipelineRun の結果")
-        print(f"  レポート出力先 {report_url}")
-        print("=" * total_w)
-
-        # ── Unit Test ──────────────────────────────────────────────────
+        # ── テスト結果URL ──────────────────────────────────────────────
         print()
         print(table([
-            ["Category",    "Total",     "Passed",     "Failures",     "Errors",     "Status"],
-            ["Unit Test",   test_total,  test_passed,  test_failures,  test_errors,  status_test()],
+            ["テスト結果URL",    report_url],
         ]))
-
-        # ── Semgrep SAST ───────────────────────────────────────────────
         print()
-        print(table([
-            ["Category",       "HIGH",    "MEDIUM",    "LOW",    "Total",    "Status"],
-            ["Semgrep SAST",   sg_high,   sg_medium,   sg_low,   sg_total,   status_semgrep()],
-        ]))
-
-        # ── OWASP Dependency-Check ─────────────────────────────────────
-        print()
-        print(table([
-            ["Category",           "CRITICAL",    "HIGH",    "MEDIUM",    "LOW",    "Total",    "Status"],
-            ["OWASP Dep-Check",    ow_critical,   ow_high,   ow_medium,   ow_low,   ow_total,   status_owasp()],
-        ]))
-
-        # ── Report URL ─────────────────────────────────────────────────
-        print()
-        print(table([
-            ["Report",         "URL"],
-            ["Test Report",    report_url],
-        ]))
-
-        print()
-        print("=" * total_w)
 
         # ── results への書き込み（4項目） ─────────────────────────────
         def icon(s):
