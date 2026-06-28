@@ -55,6 +55,38 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: checkstyle-run
+      onError: continue
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "checkstyle:check -Dcheckstyle.failsOnError=false"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: pmd-run
+      onError: continue
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "pmd:pmd -Dpmd.failOnViolation=false"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: maven-unit-test
       runAfter:
         - fetch-repository
@@ -70,10 +102,26 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: maven-e2e-test
+    - name: spotbugs-run
       onError: continue
       runAfter:
         - maven-unit-test
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "spotbugs:spotbugs"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: maven-e2e-test
+      onError: continue
+      runAfter:
+        - spotbugs-run
       taskRef:
         kind: Task
         name: maven-no-settings21
