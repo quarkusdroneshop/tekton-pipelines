@@ -89,10 +89,26 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: print-csv-table
+    - name: generate-report
       onError: continue
       runAfter:
         - maven-e2e-test
+      taskRef:
+        kind: Task
+        name: maven-no-settings21
+      params:
+        - name: CONTEXT_DIR
+          value: .
+        - name: GOALS
+          value: "exec:exec@generate-report"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: print-csv-table
+      onError: continue
+      runAfter:
+        - generate-report
       taskRef:
         kind: Task
         name: print-csv-table
