@@ -91,50 +91,66 @@ spec:
                 render_table(rows, title)
                 sys.exit(0)
 
-            # --- Surefire XML モード ---
-            xml_dir = os.path.join(base_dir, "target", "surefire-reports")
-            xml_files = glob.glob(os.path.join(xml_dir, "TEST-*.xml"))
+            # --- Surefire / Failsafe XML モード（分離表示） ---
+            header = ["テストスイート", "テスト数", "成功", "失敗", "エラー", "スキップ", "時間(秒)"]
 
-            if not xml_files:
-                print(f"[print-csv-table] surefire レポートが見つかりません: {xml_dir}")
-                print("[print-csv-table] Maven の GOALS に 'verify' または 'test' を含めてください。")
+            def parse_xml_dir(xml_dir):
+                xml_files = glob.glob(os.path.join(xml_dir, "TEST-*.xml"))
+                rows = [header]
+                t = p = f = e = s = 0
+                elapsed = 0.0
+                for xml_file in sorted(xml_files):
+                    try:
+                        root = ET.parse(xml_file).getroot()
+                        name     = root.get("name", os.path.basename(xml_file))
+                        tests    = int(root.get("tests",    0))
+                        failures = int(root.get("failures", 0))
+                        errors   = int(root.get("errors",   0))
+                        skipped  = int(root.get("skipped",  0))
+                        time_val = float(root.get("time",   0.0))
+                        passed   = tests - failures - errors - skipped
+                        parts    = name.split(".")
+                        short    = ".".join(parts[-2:]) if len(parts) >= 2 else name
+                        rows.append([short, tests, passed, failures, errors, skipped, f"{time_val:.2f}"])
+                        t += tests; p += passed; f += failures; e += errors
+                        s += skipped; elapsed += time_val
+                    except Exception as ex:
+                        print(f"[print-csv-table] 警告: {xml_file} の解析に失敗: {ex}")
+                if len(rows) > 1:
+                    rows.append(["合計", t, p, f, e, s, f"{elapsed:.2f}"])
+                return rows, t, p, f, e
+
+            surefire_dir  = os.path.join(base_dir, "target", "surefire-reports")
+            failsafe_dir  = os.path.join(base_dir, "target", "failsafe-reports")
+
+            su_rows, su_t, su_p, su_f, su_e = parse_xml_dir(surefire_dir)
+            fa_rows, fa_t, fa_p, fa_f, fa_e = parse_xml_dir(failsafe_dir)
+
+            if su_t == 0 and fa_t == 0:
+                print("[print-csv-table] surefire / failsafe レポートが見つかりません。")
+                print(f"  surefire : {surefire_dir}")
+                print(f"  failsafe : {failsafe_dir}")
                 sys.exit(0)
 
-            header = ["テストスイート", "テスト数", "成功", "失敗", "エラー", "スキップ", "時間(秒)"]
-            rows = [header]
-            total_skipped = 0
-            total_time = 0.0
+            if su_t > 0:
+                render_table(su_rows, "ユニットテスト (Surefire)")
+                if su_f > 0 or su_e > 0:
+                    print(f"  !! 失敗: {su_f} / エラー: {su_e}")
+                print()
 
-            for xml_file in sorted(xml_files):
-                try:
-                    tree = ET.parse(xml_file)
-                    root = tree.getroot()
-                    name     = root.get("name", os.path.basename(xml_file))
-                    tests    = int(root.get("tests",    0))
-                    failures = int(root.get("failures", 0))
-                    errors   = int(root.get("errors",   0))
-                    skipped  = int(root.get("skipped",  0))
-                    time_val = float(root.get("time",   0.0))
-                    passed   = tests - failures - errors - skipped
+            if fa_t > 0:
+                render_table(fa_rows, "統合テスト / E2E (Failsafe) ※ src/test/e2e のみ")
+                if fa_f > 0 or fa_e > 0:
+                    print(f"  !! 失敗: {fa_f} / エラー: {fa_e}")
+                print()
 
-                    parts = name.split(".")
-                    short_name = ".".join(parts[-2:]) if len(parts) >= 2 else name
-
-                    rows.append([short_name, tests, passed, failures, errors, skipped, f"{time_val:.2f}"])
-                    total_tests    += tests
-                    total_passed   += passed
-                    total_failures += failures
-                    total_errors   += errors
-                    total_skipped  += skipped
-                    total_time     += time_val
-                except Exception as e:
-                    print(f"[print-csv-table] 警告: {xml_file} の解析に失敗しました: {e}")
-
-            rows.append(["合計", total_tests, total_passed, total_failures, total_errors, total_skipped, f"{total_time:.2f}"])
-            render_table(rows, title)
+            total_tests    = su_t + fa_t
+            total_passed   = su_p + fa_p
+            total_failures = su_f + fa_f
+            total_errors   = su_e + fa_e
 
             if total_failures > 0 or total_errors > 0:
-                print(f"\n[print-csv-table] 失敗: {total_failures} / エラー: {total_errors}")
+                print(f"[print-csv-table] 合計失敗: {total_failures} / エラー: {total_errors}")
 
         except Exception as e:
             print(f"[print-csv-table] 予期しないエラー: {e}")
