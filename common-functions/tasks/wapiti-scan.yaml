@@ -95,12 +95,27 @@ spec:
         echo ""
         echo "--- [3/4] wapiti3 インストール ---"
         python3 --version 2>&1 || { echo "ERROR: python3 が見つかりません"; exit 0; }
-        pip3 install wapiti3 --quiet --no-cache-dir 2>&1
-        if ! command -v wapiti 2>/dev/null; then
-          # PATH に追加されていない場合
-          export PATH="$HOME/.local/bin:$PATH"
+
+        # pip が無い場合は dnf または ensurepip で取得
+        if ! python3 -m pip --version > /dev/null 2>&1; then
+          echo "pip が見つからないため dnf でインストールします..."
+          dnf install -y python3-pip --quiet 2>&1 || \
+            python3 -m ensurepip --upgrade 2>&1 || \
+            { echo "ERROR: pip のインストールに失敗しました"; exit 0; }
         fi
-        wapiti --version 2>&1 || { echo "ERROR: wapiti インストール失敗"; exit 0; }
+        echo "pip バージョン: $(python3 -m pip --version)"
+
+        python3 -m pip install wapiti3 --quiet --no-cache-dir 2>&1
+        export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+
+        if ! command -v wapiti > /dev/null 2>&1; then
+          # pip の場所を探す
+          WAPITI_PATH=$(python3 -c "import site; print(site.getusersitepackages())" 2>/dev/null || true)
+          echo "wapiti を探索中: ${WAPITI_PATH}"
+          find / -name "wapiti" -type f 2>/dev/null | head -3
+          echo "ERROR: wapiti インストール失敗"; exit 0
+        fi
+        wapiti --version 2>&1
 
         # ── Step 4: スキャン実行 ────────────────────────────────────
         echo ""
