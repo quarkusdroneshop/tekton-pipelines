@@ -1,0 +1,98 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: playwright-e2e
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    デプロイ済みアプリの OpenShift Route URL を取得し、
+    Playwright E2E テスト（WebTestItemE2EWrapperIT）をブラウザ付きで実行する。
+    テスト結果は target/failsafe-reports/ に出力される。
+  params:
+    - name: APP_NAME
+      description: OpenShift Route 名
+      type: string
+    - name: NAMESPACE
+      description: デプロイ先 Namespace
+      type: string
+      default: "quarkusdroneshop-demo"
+    - name: CONTEXT_DIR
+      description: Maven プロジェクトのディレクトリ
+      type: string
+      default: "."
+  workspaces:
+    - name: source
+      description: ソースコードと Maven キャッシュ
+  steps:
+    - name: get-route-url
+      image: quay.io/openshift/origin-cli:latest
+      env:
+        - name: APP_NAME
+          value: $(params.APP_NAME)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+        - name: URL_FILE
+          value: $(workspaces.source.path)/target/playwright-app-url.txt
+      script: |
+        #!/bin/bash
+        set -e
+
+        mkdir -p "$(dirname "${URL_FILE}")"
+        chmod -R 777 "$(workspaces.source.path)/target"
+
+        echo "Route URL 取得: ${APP_NAME} / ${NAMESPACE}"
+
+        for i in $(seq 1 18); do
+          HOST=$(oc get route "${APP_NAME}" -n "${NAMESPACE}" \
+            -o jsonpath='{.spec.host}' 2>/dev/null || true)
+          if [ -n "${HOST}" ]; then
+            APP_URL="http://${HOST}"
+            echo "URL: ${APP_URL}"
+            echo "${APP_URL}" > "${URL_FILE}"
+
+            # アプリが応答するまで最大 2 分待機
+            for j in $(seq 1 24); do
+              if curl -sf --max-time 5 "${APP_URL}" > /dev/null 2>&1; then
+                echo "アプリ応答確認 OK (${j}/24)"
+                exit 0
+              fi
+              echo "アプリ起動待機... (${j}/24)"
+              sleep 5
+            done
+            echo "WARNING: アプリが応答しないためタイムアウト"
+            exit 0
+          fi
+          echo "Route 待機... (${i}/18)"
+          sleep 10
+        done
+
+        echo "ERROR: Route ${APP_NAME} が見つかりません"
+        echo "http://localhost:8080" > "${URL_FILE}"
+
+    - name: run-playwright
+      image: mcr.microsoft.com/playwright/java:v1.50.0-noble
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      env:
+        - name: URL_FILE
+          value: $(workspaces.source.path)/target/playwright-app-url.txt
+      script: |
+        #!/bin/bash
+        set -e
+
+        APP_URL=$(cat "${URL_FILE}" 2>/dev/null || echo "http://localhost:8080")
+        echo "=============================================="
+        echo " Playwright E2E テスト開始"
+        echo " 対象 URL: ${APP_URL}"
+        echo "=============================================="
+
+        mvn test-compile \
+          failsafe:integration-test \
+          failsafe:verify \
+          -Dit.test="WebTestItemE2EWrapperIT" \
+          -Dapp.url="${APP_URL}" \
+          -Dfailsafe.rerunFailingTestsCount=0 \
+          || true
+
+        echo "=============================================="
+        echo " Playwright E2E テスト完了"
+        echo "=============================================="

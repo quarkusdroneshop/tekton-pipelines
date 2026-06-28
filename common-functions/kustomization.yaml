@@ -8,6 +8,7 @@ resources:
 - tasks/print-csv-table.yaml
 - tasks/semgrep-scan.yaml
 - tasks/maven21-playwright.yaml
+- tasks/playwright-e2e.yaml
 - tasks/gitleaks-scan.yaml
 - tasks/trivy-scan.yaml
 - tasks/wapiti-scan.yaml

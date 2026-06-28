@@ -171,6 +171,22 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: playwright-e2e
+      onError: continue
+      runAfter:
+        - push-oc-apps
+      taskRef:
+        kind: Task
+        name: playwright-e2e
+      params:
+        - name: APP_NAME
+          value: "customermocker"
+        - name: NAMESPACE
+          value: "quarkusdroneshop-demo"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: wapiti-scan
       onError: continue
       runAfter:
@@ -191,6 +207,7 @@ spec:
       onError: continue
       runAfter:
         - wapiti-scan
+        - playwright-e2e
         - spotbugs-run
       taskRef:
         kind: Task
