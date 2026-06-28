@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wapiti-scan
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    デプロイ済みアプリの OpenShift Route URL を取得して Wapiti DAST スキャンを実行する。
+    スキャン結果は target/wapiti.json に出力する。
+  params:
+    - name: APP_NAME
+      description: OpenShift Route 名（oc get route <APP_NAME>）
+      type: string
+    - name: NAMESPACE
+      description: デプロイ先 Namespace
+      type: string
+      default: "quarkusdroneshop-demo"
+    - name: WAPITI_OPTIONS
+      description: wapiti の追加オプション
+      type: string
+      default: "--scope page --max-links-per-page 50 --max-scan-time 300"
+  workspaces:
+    - name: source
+      description: ソースコードとレポート出力先ワークスペース
+  steps:
+    - name: get-route-url
+      image: quay.io/openshift/origin-cli:latest
+      script: |
+        #!/bin/bash
+        set -e
+
+        REPORT_DIR="$(workspaces.source.path)/target"
+        mkdir -p "${REPORT_DIR}"
+        chmod -R 777 "${REPORT_DIR}"
+
+        echo "=============================================="
+        echo " Route URL 取得: $(params.APP_NAME)"
+        echo "=============================================="
+
+        # Route が Ready になるまで最大 3 分待機
+        for i in $(seq 1 18); do
+          HOST=$(oc get route $(params.APP_NAME) \
+            -n $(params.NAMESPACE) \
+            -o jsonpath='{.spec.host}' 2>/dev/null || true)
+          if [ -n "${HOST}" ]; then
+            echo "Route URL: http://${HOST}"
+            echo "http://${HOST}" > "${REPORT_DIR}/wapiti-target-url.txt"
+            exit 0
+          fi
+          echo "Waiting for route... (${i}/18)"
+          sleep 10
+        done
+
+        echo "ERROR: Route $(params.APP_NAME) not found in $(params.NAMESPACE)"
+        echo "SKIP" > "${REPORT_DIR}/wapiti-target-url.txt"
+        exit 1
+
+    - name: run-wapiti
+      image: ghcr.io/wapitiproject/wapiti:latest
+      script: |
+        #!/bin/sh
+        set -e
+
+        REPORT_DIR="$(workspaces.source.path)/target"
+        URL_FILE="${REPORT_DIR}/wapiti-target-url.txt"
+
+        echo "=============================================="
+        echo " Wapiti DAST スキャン開始"
+        echo "=============================================="
+
+        if [ ! -f "${URL_FILE}" ]; then
+          echo "ERROR: URL ファイルが見つかりません: ${URL_FILE}"
+          exit 1
+        fi
+
+        TARGET_URL=$(cat "${URL_FILE}")
+        if [ "${TARGET_URL}" = "SKIP" ]; then
+          echo "SKIP: Route が取得できなかったためスキャンをスキップします"
+          echo '{"info":{"version":"","date":"","target":"","scope":""},"vulnerabilities":{},"anomalies":{},"additionals":{}}' \
+            > "${REPORT_DIR}/wapiti.json"
+          exit 0
+        fi
+
+        echo "スキャン対象 URL: ${TARGET_URL}"
+
+        wapiti \
+          -u "${TARGET_URL}" \
+          -f json \
+          -o "${REPORT_DIR}/wapiti.json" \
+          $(params.WAPITI_OPTIONS) \
+          --flush-session \
+          || true
+
+        echo "=============================================="
+        echo " Wapiti スキャン完了"
+        echo "  出力: ${REPORT_DIR}/wapiti.json"
+        echo "=============================================="

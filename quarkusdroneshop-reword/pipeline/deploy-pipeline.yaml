@@ -86,10 +86,26 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: wapiti-scan
+      onError: continue
+      runAfter:
+        - push-oc-apps
+      taskRef:
+        kind: Task
+        name: wapiti-scan
+      params:
+        - name: APP_NAME
+          value: "reward"
+        - name: NAMESPACE
+          value: "quarkusdroneshop-demo"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: generate-report
       onError: continue
       runAfter:
-        - maven-e2e-test
+        - wapiti-scan
       taskRef:
         kind: Task
         name: maven-no-settings21
@@ -161,7 +177,7 @@ spec:
 
     - name: push-oc-apps
       runAfter:
-        - print-csv-table
+        - maven-e2e-test
       taskRef:
         name: push-app-task
       params:
