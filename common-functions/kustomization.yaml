@@ -7,6 +7,9 @@ resources:
 - tasks/publish-test-report.yaml
 - tasks/print-csv-table.yaml
 - tasks/semgrep-scan.yaml
+- tasks/gitleaks-scan.yaml
+- tasks/trivy-scan.yaml
+- tasks/wapiti-scan.yaml
 - tasks/owasp-dependency-check.yaml
 - tasks/owasp-dependency-check-update.yaml
 - tasks/pipeline-summary.yaml
