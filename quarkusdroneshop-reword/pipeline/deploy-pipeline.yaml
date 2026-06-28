@@ -302,24 +302,29 @@ spec:
 
             oc delete all -l app=reward -n quarkusdroneshop-demo || true
             oc delete bc/reward -n quarkusdroneshop-demo || true
+
+            # ── env を先読み ───────────────────────────────────────────
+            PGSQL_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.PGSQL_URL}')
+            PGSQL_USER=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.user}' | base64 --decode)
+            PGSQL_PASS=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
+            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
+            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
+
             RUNNER_JAR=$(ls target/*-runner.jar | head -1)
-            oc new-build --binary --name=reward --docker-image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc new-build --binary --name=reward --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
             oc patch bc/reward -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build reward --from-file="$RUNNER_JAR" --follow -n quarkusdroneshop-demo
             oc new-app reward --name=reward --allow-missing-images -n quarkusdroneshop-demo
-            oc set env deployment/quarkusdroneshop-reward JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
 
-            PGSQL_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.PGSQL_URL}')
-            oc set env deployment/quarkusdroneshop-reward PGSQL_URL=$PGSQL_URL -n quarkusdroneshop-demo
-            PGSQL_USER=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.user}' | base64 --decode)
-            oc set env deployment/quarkusdroneshop-reward PGSQL_USER=$PGSQL_USER -n quarkusdroneshop-demo
-            PGSQL_PASS=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
-            oc set env deployment/quarkusdroneshop-reward PGSQL_PASS=$PGSQL_PASS -n quarkusdroneshop-demo
-
-            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
-            oc set env deployment/quarkusdroneshop-reward KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
-            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
-            oc set env deployment/quarkusdroneshop-reward QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
+            # ── すべての env を 1 コマンドでセット ────────────────────
+            oc set env deployment/reward \
+              JAVA_OPTS_APPEND="-Dquarkus.profile=prod" \
+              PGSQL_URL="$PGSQL_URL" \
+              PGSQL_USER="$PGSQL_USER" \
+              PGSQL_PASS="$PGSQL_PASS" \
+              KAFKA_BOOTSTRAP_URLS="$KAFKA_URL" \
+              QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
+              -n quarkusdroneshop-demo
       workspaces:
         - name: source
           workspace: shared-workspace

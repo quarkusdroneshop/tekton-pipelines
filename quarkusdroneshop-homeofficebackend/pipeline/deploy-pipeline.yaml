@@ -308,39 +308,126 @@ spec:
             oc delete bc/homeoffice-backend -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete istag homeoffice-backend:latest -n quarkusdroneshop-demo --ignore-not-found=true
 
-            oc new-build --binary --name=homeoffice-backend --docker-image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            # ── DB シークレット確認 ──────────────────────────────────────────
+            if ! oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo &>/dev/null; then
+              echo "ERROR: secret droneshopdb-pguser-droneshopadmin not found. CrunchyData PostgreSQL cluster is not ready." >&2
+              exit 1
+            fi
+
+            # ── ConfigMap / Secret から値を先読み ────────────────────────────
+            POSTGRESQL_JDBC_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.PGSQL_URL}')
+            POSTGRESQL_USER=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.user}' | base64 --decode)
+            POSTGRESQL_PASSWORD=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
+            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
+            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
+            QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
+            STORE_LOCATIONS=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.STORE_ID}')
+
+            # ── シーケンスリセット（デプロイ前に実行・既存データと整合性を確保）───
+            PGPOD=$(oc get pod -n quarkusdroneshop-demo \
+              -l postgres-operator.crunchydata.com/role=master \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
+              oc get pod -n quarkusdroneshop-demo \
+              -l postgres-operator.crunchydata.com/role=primary \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+            if [[ -n "$PGPOD" ]]; then
+              echo "Resetting sequences on pod: $PGPOD"
+              oc exec "$PGPOD" -n quarkusdroneshop-demo -- \
+                psql -U droneshopadmin -d droneshopdb -c "
+SELECT setval('droneshop.id_seq_gen', (
+  SELECT GREATEST(
+    COALESCE((SELECT MAX(id) FROM droneshop.\"lineItems\"), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.productitemsales), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.itemsales), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.productsales), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.averageorderuptime), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.storeserversales), 0),
+    COALESCE((SELECT MAX(id) FROM droneshop.storelocation), 0)
+  ) + 100
+));
+" || echo "WARNING: sequence reset had warnings (non-fatal)"
+            else
+              echo "WARNING: PostgreSQL primary pod not found; skipping sequence reset"
+            fi
+
+            oc new-build --binary --name=homeoffice-backend --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
             oc patch bc/homeoffice-backend -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build homeoffice-backend --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app homeoffice-backend --name=homeoffice-backend --allow-missing-images -n quarkusdroneshop-demo
-            oc set env deployment/homeoffice-backend JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
 
             oc expose deployment homeoffice-backend --port=8080 --name=homeoffice-backend -n quarkusdroneshop-demo || true
             oc expose svc homeoffice-backend --name=homeoffice-backend -n quarkusdroneshop-demo || true
 
-            POSTGRESQL_JDBC_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.PGSQL_URL}')
-            oc set env deployment/homeoffice-backend POSTGRESQL_JDBC_URL=$POSTGRESQL_JDBC_URL -n quarkusdroneshop-demo
-            POSTGRESQL_USER=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.user}' | base64 --decode)
-            oc set env deployment/homeoffice-backend POSTGRESQL_USER=$POSTGRESQL_USER -n quarkusdroneshop-demo
-            POSTGRESQL_PASSWORD=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
-            oc set env deployment/homeoffice-backend POSTGRESQL_PASSWORD=$POSTGRESQL_PASSWORD -n quarkusdroneshop-demo
+            # ── すべての env を 1 コマンドでセット（余分なロールアウトを防ぐ）──
+            # QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION=none で再デプロイ時のシーケンスリセットを防止
+            oc set env deployment/homeoffice-backend \
+              JAVA_OPTS_APPEND="-Dquarkus.profile=prod" \
+              POSTGRESQL_JDBC_URL="$POSTGRESQL_JDBC_URL" \
+              POSTGRESQL_USER="$POSTGRESQL_USER" \
+              POSTGRESQL_PASSWORD="$POSTGRESQL_PASSWORD" \
+              KAFKA_BOOTSTRAP_URLS="$KAFKA_URL" \
+              QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
+              QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
+              STORE_LOCATIONS="$STORE_LOCATIONS" \
+              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION="none" \
+              -n quarkusdroneshop-demo
 
             CONFIG_CORS_ORIGINS=$(oc get route homeoffice-backend -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)
-            CONFIG_LOYALTY_STREAM_URL=$(oc get route homeoffice-backend -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)/dashboard/loyaltystream
-            CONFIG_STREAM_URL=$(oc get route homeoffice-backend -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)/dashboard/stream
-            CONFIG_GRAPHQL_URL=$(oc get route homeoffice-backend -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)/graphql
+            CONFIG_LOYALTY_STREAM_URL="${CONFIG_CORS_ORIGINS}/dashboard/loyaltystream"
+            CONFIG_STREAM_URL="${CONFIG_CORS_ORIGINS}/dashboard/stream"
+            CONFIG_GRAPHQL_URL="${CONFIG_CORS_ORIGINS}/graphql"
             oc patch configmap droneshop-config -n quarkusdroneshop-demo -p "{\"data\":{\"CORS_ORIGINS\":\"http://$CONFIG_CORS_ORIGINS\"}}"
             oc patch configmap droneshop-config -n quarkusdroneshop-demo -p "{\"data\":{\"LOYALTY_STREAM_URL\":\"http://$CONFIG_LOYALTY_STREAM_URL\"}}"
             oc patch configmap droneshop-config -n quarkusdroneshop-demo -p "{\"data\":{\"STREAM_URL\":\"http://$CONFIG_STREAM_URL\"}}"
             oc patch configmap droneshop-config -n quarkusdroneshop-demo -p "{\"data\":{\"GRAPHQL_URL\":\"http://$CONFIG_GRAPHQL_URL\"}}"
 
-            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
-            oc set env deployment/homeoffice-backend  KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
-            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
-            oc set env deployment/homeoffice-backend  QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
-            QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
-            oc set env deployment/homeoffice-backend  QUARKUSDRONESHOP_LOG_LEVEL=$QUARKUSDRONESHOP_LOG_LEVEL -n quarkusdroneshop-demo
-            STORE_LOCATIONS=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.STORE_ID}')
-            oc set env deployment/homeoffice-backend  STORE_LOCATIONS=$STORE_LOCATIONS -n quarkusdroneshop-demo
+            # ── アプリ起動待ち（シーケンスリセット前にスキーマ更新完了を待つ）──
+            echo "Waiting for homeoffice-backend rollout..."
+            oc rollout status deployment/homeoffice-backend -n quarkusdroneshop-demo --timeout=300s
+
+            # ── PostgreSQL シーケンスリセット（Hibernate sequence と DB の不整合修正）──
+            PGPOD=$(oc get pod -n quarkusdroneshop-demo \
+              -l postgres-operator.crunchydata.com/role=master \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
+              oc get pod -n quarkusdroneshop-demo \
+              -l postgres-operator.crunchydata.com/role=primary \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+            if [[ -n "$PGPOD" ]]; then
+              echo "Resetting sequences on pod: $PGPOD"
+              oc exec "$PGPOD" -n quarkusdroneshop-demo -- psql -U droneshopadmin -d droneshopdb -c "
+                DO \$\$
+                DECLARE
+                  seq_rec RECORD;
+                BEGIN
+                  FOR seq_rec IN
+                    SELECT
+                      s.relname AS seq_name,
+                      t.relname AS tbl_name,
+                      a.attname AS col_name
+                    FROM pg_class s
+                    JOIN pg_depend d ON d.objid = s.oid
+                    JOIN pg_class t ON t.oid = d.refobjid
+                    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
+                    JOIN pg_namespace n ON n.oid = s.relnamespace
+                    WHERE s.relkind = 'S'
+                      AND n.nspname = 'droneshop'
+                  LOOP
+                    EXECUTE format(
+                      'SELECT setval(%L, COALESCE((SELECT MAX(%I) FROM droneshop.%I), 1))',
+                      'droneshop.' || seq_rec.seq_name,
+                      seq_rec.col_name,
+                      seq_rec.tbl_name
+                    );
+                    RAISE NOTICE 'Reset sequence: %', seq_rec.seq_name;
+                  END LOOP;
+                END
+                \$\$;
+              " || echo "WARNING: sequence reset failed (non-fatal)"
+            else
+              echo "WARNING: PostgreSQL primary pod not found; skipping sequence reset"
+            fi
       workspaces:
         - name: source
           workspace: shared-workspace

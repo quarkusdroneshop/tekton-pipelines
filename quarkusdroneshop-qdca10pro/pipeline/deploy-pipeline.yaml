@@ -302,18 +302,24 @@ spec:
 
             oc delete all -l app=qdca10pro -n quarkusdroneshop-demo || true
             oc delete bc/qdca10pro -n quarkusdroneshop-demo || true
-            oc new-build --binary --name=qdca10pro --docker-image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+
+            # ── env を先読み ───────────────────────────────────────────
+            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
+            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
+            QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
+
+            oc new-build --binary --name=qdca10pro --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
             oc patch bc/qdca10pro -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build qdca10pro --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app qdca10pro --name=qdca10pro --allow-missing-images -n quarkusdroneshop-demo
-            oc set env deployment/quarkusdroneshop-qdca10pro JAVA_OPTS_APPEND="-Dquarkus.profile=prod" -n quarkusdroneshop-demo
 
-            KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
-            oc set env deployment/quarkusdroneshop-qdca10pro KAFKA_BOOTSTRAP_URLS=$KAFKA_URL -n quarkusdroneshop-demo
-            QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
-            oc set env deployment/quarkusdroneshop-qdca10pro QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL -n quarkusdroneshop-demo
-            QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
-            oc set env deployment/quarkusdroneshop-qdca10pro QUARKUSDRONESHOP_LOG_LEVEL=$QUARKUSDRONESHOP_LOG_LEVEL -n quarkusdroneshop-demo
+            # ── すべての env を 1 コマンドでセット ────────────────────
+            oc set env deployment/qdca10pro \
+              JAVA_OPTS_APPEND="-Dquarkus.profile=prod" \
+              KAFKA_BOOTSTRAP_URLS="$KAFKA_URL" \
+              QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
+              QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
+              -n quarkusdroneshop-demo
       workspaces:
         - name: source
           workspace: shared-workspace

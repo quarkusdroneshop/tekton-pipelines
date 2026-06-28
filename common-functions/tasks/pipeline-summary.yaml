@@ -53,12 +53,6 @@ spec:
       type: string
       default: "-"
   results:
-    - name: junit
-      description: JUnit test result summary
-    - name: semgrep
-      description: Semgrep SAST result summary
-    - name: owasp
-      description: OWASP Dependency-Check result summary
     - name: report-url
       description: Test report URL
   steps:
@@ -136,13 +130,5 @@ spec:
         ]))
         print()
 
-        # ── results への書き込み（4項目） ─────────────────────────────
-        def icon(s):
-            return {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "検証不可": "🔕"}.get(s, "➖")
-
-        st = status_test(); ss = status_semgrep(); so = status_owasp()
-        open("$(results.junit.path)",      "w").write(f"{icon(st)} Pass:{test_passed}  Fail:{test_failures}  Err:{test_errors}  Total:{test_total}")
-        open("$(results.semgrep.path)",    "w").write(f"{icon(ss)} HIGH:{sg_high}  MED:{sg_medium}  LOW:{sg_low}  Total:{sg_total}")
-        owasp_val = "🔕 解析不可" if ow_critical == "検証不可" else f"{icon(so)} CRIT:{ow_critical}  HIGH:{ow_high}  MED:{ow_medium}  LOW:{ow_low}"
-        open("$(results.owasp.path)",      "w").write(owasp_val)
+        # ── results への書き込み ───────────────────────────────────────
         open("$(results.report-url.path)", "w").write(report_url)
