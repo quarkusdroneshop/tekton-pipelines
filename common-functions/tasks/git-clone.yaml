@@ -55,6 +55,7 @@ spec:
         fi
         CHECKOUT_DIR="$(workspaces.output.path)/$(params.subdirectory)"
         if [[ "$(params.deleteExisting)" == "true" ]]; then
+          chmod -R 777 "${CHECKOUT_DIR}" 2>/dev/null || true
           rm -rf "${CHECKOUT_DIR}" || true
         fi
         mkdir -p "${CHECKOUT_DIR}"

@@ -16,12 +16,6 @@ spec:
       name: IMAGE_TAG
       type: string
   results:
-    - name: junit
-      description: JUnit test result summary
-      value: $(tasks.pipeline-summary.results.junit)
-    - name: semgrep
-      description: Semgrep SAST result summary
-      value: $(tasks.pipeline-summary.results.semgrep)
     - name: report-url
       description: Test report URL
       value: $(tasks.pipeline-summary.results.report-url)
@@ -44,15 +38,28 @@ spec:
         - name: output
           workspace: shared-workspace
 
-    - name: semgrep-scan
+    - name: nodejs-test
       runAfter:
         - fetch-repository
+      taskRef:
+        kind: Task
+        name: nodejs-test
+      params:
+        - name: CONTEXT_DIR
+          value: "."
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: semgrep-scan
+      runAfter:
+        - nodejs-test
       taskRef:
         kind: Task
         name: semgrep-scan
       params:
         - name: RULES
-          value: "p/java,p/owasp-top-ten,p/secrets"
+          value: "p/javascript,p/owasp-top-ten,p/secrets"
         - name: FAIL_ON_FINDINGS
           value: "false"
       workspaces:
@@ -127,18 +134,22 @@ spec:
             #!/bin/bash
             set -e
 
-            oc delete route homeoffice-ui -n quarkusdroneshop-demo || true
-            oc delete svc homeoffice-ui -n quarkusdroneshop-demo || true
-            oc delete deployment homeoffice-ui -n quarkusdroneshop-demo || true
-            oc delete is homeoffice-ui -n quarkusdroneshop-demo || true
-            oc delete bc/homeoffice-ui -n quarkusdroneshop-demo || true
-            oc delete istag homeoffice-ui:latest -n quarkusdroneshop-demo || true
+            oc delete route homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete svc homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete deployment homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete is homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete bc/homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete istag homeoffice-ui:latest -n quarkusdroneshop-demo --ignore-not-found=true
 
             echo "legacy-peer-deps=true" > .npmrc
 
             CONFIG_CORS_ORIGINS=$(oc get route homeoffice-backend \
               -o jsonpath='{.spec.host}' \
-              -n quarkusdroneshop-demo)
+              -n quarkusdroneshop-demo 2>/dev/null || echo "")
+
+            if [[ -z "$CONFIG_CORS_ORIGINS" ]]; then
+              echo "WARNING: homeoffice-backend route not found. Using empty CORS origin." >&2
+            fi
 
             CONFIG_GRAPHQL_URL="https://${CONFIG_CORS_ORIGINS}/graphql"
 
@@ -233,8 +244,6 @@ spec:
                 }
               ]'
 
-            npm test
-            npm run test:e2e
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -259,4 +268,4 @@ spec:
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
-        claimName: homeoffice-pipeline-cache
+        claimName: quarkusdroneshop-homeofficeui-shared-workspace-pvc

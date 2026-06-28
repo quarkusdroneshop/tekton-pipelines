@@ -7,7 +7,8 @@ metadata:
     app.kubernetes.io/part-of: quarkusdroneshop
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
+  storageClassName: gp3-csi
   resources:
     requests:
       storage: 5Gi

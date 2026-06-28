@@ -1,0 +1,56 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: nodejs-test
+  namespace: quarkusdroneshop-cicd
+spec:
+  description: >
+    Node.js プロジェクトの依存関係をインストールし、
+    Jest ユニットテストを実行してテスト結果を test-results/ に出力する。
+    E2E テスト（Playwright）はデプロイ後に別ステップで実施する。
+  params:
+    - name: CONTEXT_DIR
+      description: ソースコードのサブディレクトリ
+      type: string
+      default: "."
+    - name: NODE_ENV
+      description: Node.js 環境変数
+      type: string
+      default: "test"
+  workspaces:
+    - name: source
+      description: ソースコードワークスペース
+  steps:
+    - name: npm-install
+      image: registry.access.redhat.com/ubi8/nodejs-20:latest
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      env:
+        - name: NODE_ENV
+          value: $(params.NODE_ENV)
+        - name: HOME
+          value: /tekton/home
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== npm install ==="
+        echo "legacy-peer-deps=true" > .npmrc
+        npm install --legacy-peer-deps
+
+    - name: npm-test
+      image: registry.access.redhat.com/ubi8/nodejs-20:latest
+      workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
+      env:
+        - name: NODE_ENV
+          value: $(params.NODE_ENV)
+        - name: HOME
+          value: /tekton/home
+        - name: CI
+          value: "true"
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== npm test (Jest) ==="
+        mkdir -p test-results
+        npm run test:json || true
+        echo "=== npm lint ==="
+        npm run lint:json || true

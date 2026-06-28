@@ -15,12 +15,6 @@ spec:
       name: IMAGE_TAG
       type: string
   results:
-    - name: junit
-      description: JUnit test result summary
-      value: $(tasks.pipeline-summary.results.junit)
-    - name: semgrep
-      description: Semgrep SAST result summary
-      value: $(tasks.pipeline-summary.results.semgrep)
     - name: report-url
       description: Test report URL
       value: $(tasks.pipeline-summary.results.report-url)

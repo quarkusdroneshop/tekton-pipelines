@@ -3,10 +3,12 @@ kind: PersistentVolumeClaim
 metadata:
   name: quarkusdroneshop-homeofficebackend-shared-workspace-pvc
   namespace: quarkusdroneshop-cicd
+  labels:
+    app.kubernetes.io/part-of: quarkusdroneshop
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: gp3-csi
   resources:
     requests:
       storage: 5Gi
-  storageClassName: gp3-csi

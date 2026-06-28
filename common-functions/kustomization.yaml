@@ -16,3 +16,4 @@ resources:
 - tasks/owasp-dependency-check.yaml
 - tasks/owasp-dependency-check-update.yaml
 - tasks/pipeline-summary.yaml
+- tasks/nodejs-test.yaml
