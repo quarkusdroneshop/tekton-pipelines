@@ -161,7 +161,7 @@ spec:
         - maven-unit-test
       taskRef:
         kind: Task
-        name: maven-no-settings21
+        name: maven-playwright
       params:
         - name: CONTEXT_DIR
           value: .

@@ -7,6 +7,7 @@ resources:
 - tasks/publish-test-report.yaml
 - tasks/print-csv-table.yaml
 - tasks/semgrep-scan.yaml
+- tasks/maven21-playwright.yaml
 - tasks/gitleaks-scan.yaml
 - tasks/trivy-scan.yaml
 - tasks/wapiti-scan.yaml

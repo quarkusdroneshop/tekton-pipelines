@@ -135,53 +135,63 @@ YAML
 
 ## Pipeline の構成
 
-        ソースコード（Git / PR / Push）
-                      │
-                      ▼
-                CIパイプライン
-                      │
-                      ▼
-                  Maven Build
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-        ▼                           ▼
-   Maven Test                 静的解析（詳細）
-                                   │
-        ┌──────────────────────────┼──────────────────────────┐
-        │                          │                          │
-        ▼                          ▼                          ▼
- Checkstyle                PMD / SpotBugs              Semgrep SAST
-（コーディング規約）        （バグ・設計欠陥）          （セキュリティ脆弱性）
-        │                          │                          │
-        ▼                          ▼                          ▼
- JaCoCo                      ArchUnit / ArchRules      Secret Scan
-（テストカバレッジ）          （アーキテクチャ違反）     （認証情報・APIキー漏洩）
-                                   │
-                                   ▼
-                            Dependency Check
-                              （CVE検出）
-                                   │
-                                   ▼
-                              Wapiti（DAST）
-                      （動的Webアプリ診断）
-                                   │
-                                   ▼
-                        品質ゲート（Quality Gate）
-                                   │
-                                   ▼
-                    コンテナビルド & Push
-              （OpenShift / Image Registry）
-                                   │
-                                   ▼
-                      デプロイ（OpenShift）
-                                   │
-                                   ▼
-        ┌─────────────────────────────────────────┐
-        │                                         │
-        ▼                                         ▼
- Backend API（Quarkus）             [Qute Web](chatgpt://generic-entity?number=0)
-        │                                         │
-        └──────────────────┬──────────────────────┘
-                           ▼
-                 ユーザー向けWeb画面
+                         GitHub Repository
+                               │
+                               ▼
+                    fetch-repository (git-clone)
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+              ▼                                 ▼
+      Maven Unit Test                  Checkstyle
+     (clean test)                (checkstyle:check)
+              │                                 │
+              │                                 ▼
+              │                             PMD Scan
+              │                        (pmd:pmd)
+              │                                 │
+              │                                 ▼
+              │                         Semgrep Scan
+              │                    (SAST / Secrets)
+              │                                 │
+              │                                 ▼
+              │                         Gitleaks Scan
+              │                    (Secret Detection)
+              │                                 │
+              │                                 ▼
+              │                          Trivy Scan
+              │                (Vulnerability + Secret)
+              │                                 │
+              │                                 ▼
+              └───────────────┬─────────────────┘
+                              │
+                              ▼
+                       SpotBugs Scan
+                    (spotbugs:spotbugs)
+                              │
+                              ▼
+                     Maven Integration Test
+                  (Failsafe Integration Test)
+                              │
+                              ▼
+                    Push to OpenShift Apps
+                 (BuildConfig / Deployment)
+                              │
+                              ▼
+                        Wapiti Scan
+                  (Dynamic Security Test)
+                              │
+                              ▼
+                     Generate HTML Report
+                     (exec:generate-report)
+                              │
+                              ▼
+                     Print CSV Summary
+                     (print-csv-table)
+                              │
+                              ▼
+                    Publish Test Report
+                              │
+                              ▼
+                     Pipeline Summary
+                    (Tekton Results API)
