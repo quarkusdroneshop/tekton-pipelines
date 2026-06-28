@@ -180,7 +180,7 @@ YAML
         ┌─────────────────────────────────────────┐
         │                                         │
         ▼                                         ▼
- Backend API（Quarkus / Camel）          [Qute Web](chatgpt://generic-entity?number=0)
+ Backend API（Quarkus）             [Qute Web](chatgpt://generic-entity?number=0)
         │                                         │
         └──────────────────┬──────────────────────┘
                            ▼

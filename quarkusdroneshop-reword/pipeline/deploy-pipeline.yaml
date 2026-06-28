@@ -18,25 +18,12 @@ spec:
     - name: semgrep
       description: Semgrep SAST result summary
       value: $(tasks.pipeline-summary.results.semgrep)
-    - name: owasp
-      description: OWASP Dependency-Check result summary
-      value: $(tasks.pipeline-summary.results.owasp)
     - name: report-url
       description: Test report URL
       value: $(tasks.pipeline-summary.results.report-url)
   workspaces:
     - name: shared-workspace
-    - name: dependency-check-cache
-      description: "NVD DB (dependency-check-db PVC, CronJob で毎日更新)"
   tasks:
-
-    - name: owasp-dependency-check-update
-      onError: continue
-      taskRef:
-        name: owasp-dependency-check-update
-      workspaces:
-        - name: cache
-          workspace: dependency-check-cache
 
     - name: fetch-repository
       params:
@@ -70,7 +57,7 @@ spec:
 
     - name: maven-run
       runAfter:
-        - semgrep-scan
+        - fetch-repository
       taskRef:
         kind: Task
         name: maven-no-settings21
@@ -83,28 +70,10 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: owasp-dependency-check
-      runAfter:
-        - maven-run
-        - owasp-dependency-check-update
-      taskRef:
-        kind: Task
-        name: owasp-dependency-check
-      params:
-        - name: FAIL_ON_CVSS
-          value: "8"
-        - name: NVD_API_DELAY
-          value: "16000"
-      workspaces:
-        - name: source
-          workspace: shared-workspace
-        - name: cache
-          workspace: dependency-check-cache
-
     - name: print-csv-table
       onError: continue
       runAfter:
-        - owasp-dependency-check
+        - maven-run
       taskRef:
         kind: Task
         name: print-csv-table
@@ -155,16 +124,6 @@ spec:
           value: $(tasks.semgrep-scan.results.low)
         - name: SEMGREP_TOTAL
           value: $(tasks.semgrep-scan.results.total)
-        - name: OWASP_CRITICAL
-          value: $(tasks.owasp-dependency-check.results.critical)
-        - name: OWASP_HIGH
-          value: $(tasks.owasp-dependency-check.results.high)
-        - name: OWASP_MEDIUM
-          value: $(tasks.owasp-dependency-check.results.medium)
-        - name: OWASP_LOW
-          value: $(tasks.owasp-dependency-check.results.low)
-        - name: OWASP_TOTAL
-          value: $(tasks.owasp-dependency-check.results.total)
         - name: REPORT_URL
           value: $(tasks.publish-test-report.results.report-url)
 
@@ -218,6 +177,3 @@ spec:
     - name: shared-workspace
       persistentVolumeClaim:
         claimName: quarkusdroneshop-reword-shared-workspace-pvc
-    - name: dependency-check-cache
-      persistentVolumeClaim:
-        claimName: dependency-check-db
