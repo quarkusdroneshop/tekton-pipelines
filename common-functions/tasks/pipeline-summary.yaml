@@ -125,9 +125,14 @@ spec:
             lines.append(sep(widths))
             return "\n".join(lines)
 
+        from datetime import datetime, timezone, timedelta
+        JST = timezone(timedelta(hours=9))
+        now_str = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S JST")
+
         total_w = 72
         print("=" * total_w)
-        print(f"  Pipeline Summary: {app}")
+        print(f"  PipelineRun の結果")
+        print(f"  レポート出力先 {report_url}")
         print("=" * total_w)
 
         # ── Unit Test ──────────────────────────────────────────────────
