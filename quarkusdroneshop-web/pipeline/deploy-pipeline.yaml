@@ -197,7 +197,7 @@ spec:
         - name: CONTEXT_DIR
           value: .
         - name: GOALS
-          value: "test-compile failsafe:integration-test failsafe:verify -Dit.test=WebTestItemE2EWrapperIT+OrderFlowE2ETest -Dsurefire.skip=true"
+          value: "test-compile failsafe:integration-test failsafe:verify -Dsurefire.skip=true"
       workspaces:
         - name: source
           workspace: shared-workspace
