@@ -53,6 +53,7 @@ spec:
 
         REPORT_DIR="$(workspaces.source.path)/target/semgrep-reports"
         mkdir -p "${REPORT_DIR}"
+        chmod -R 777 "$(workspaces.source.path)/target"
 
         # スキャン実行（終了コードを保存）
         semgrep scan \
