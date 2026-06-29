@@ -309,6 +309,7 @@ spec:
             PGSQL_PASS=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
             QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
+            QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
 
             RUNNER_JAR=$(ls target/*-runner.jar | head -1)
             oc new-build --binary --name=reward --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
@@ -324,6 +325,7 @@ spec:
               PGSQL_PASS="$PGSQL_PASS" \
               KAFKA_BOOTSTRAP_URLS="$KAFKA_URL" \
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
+              QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               -n quarkusdroneshop-demo
       workspaces:
         - name: source
