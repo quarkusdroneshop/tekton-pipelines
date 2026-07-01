@@ -189,9 +189,13 @@ spec:
               -n quarkusdroneshop-demo
 
             # server.js がバックエンドにプロキシするための URL を設定
+            # DC と Deployment の両方に設定 (DC が Deployment を管理する場合、DC への設定が永続する)
+            oc set env dc/homeoffice-ui \
+              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
+              -n quarkusdroneshop-demo 2>/dev/null || true
             oc set env deployment/homeoffice-ui \
               GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
-              -n quarkusdroneshop-demo
+              -n quarkusdroneshop-demo 2>/dev/null || true
 
             oc expose svc homeoffice-ui \
               --name=homeoffice-ui \
