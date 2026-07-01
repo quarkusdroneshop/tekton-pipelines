@@ -323,6 +323,8 @@ spec:
               PGSQL_USER="$PGSQL_USER" \
               PGSQL_PASS="$PGSQL_PASS" \
               -n quarkusdroneshop-demo
+            # Expose Route for /q/health checks from other clusters
+            oc expose svc/counter -n quarkusdroneshop-demo || true
       workspaces:
         - name: source
           workspace: shared-workspace

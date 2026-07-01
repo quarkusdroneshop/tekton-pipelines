@@ -320,6 +320,8 @@ spec:
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               -n quarkusdroneshop-demo
+            # Expose Route for /q/health checks from other clusters
+            oc expose svc/qdca10 -n quarkusdroneshop-demo || true
       workspaces:
         - name: source
           workspace: shared-workspace
