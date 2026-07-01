@@ -151,10 +151,9 @@ spec:
               echo "WARNING: homeoffice-backend route not found. Using empty CORS origin." >&2
             fi
 
-            CONFIG_GRAPHQL_URL="https://${CONFIG_CORS_ORIGINS}/graphql"
-
+            # REACT_APP_GRAPHQL_ENDPOINT は相対パス固定 (server.js のプロキシが転送)
             cat > .env <<EOF
-            REACT_APP_GRAPHQL_ENDPOINT=${CONFIG_GRAPHQL_URL}
+            REACT_APP_GRAPHQL_ENDPOINT=/graphql
             ALLOWED_ORIGINS=https://${CONFIG_CORS_ORIGINS}
             EOF
 
@@ -163,11 +162,11 @@ spec:
 
             oc patch configmap droneshop-config \
               -n quarkusdroneshop-demo \
-              -p "{\"data\":{\"CORS_ORIGINS\":\"https://${CONFIG_CORS_ORIGINS}\"}}"
+              -p "{\"data\":{\"CORS_ORIGINS\":\"https://${CONFIG_CORS_ORIGINS}\"}}" || true
 
             oc patch configmap droneshop-config \
               -n quarkusdroneshop-demo \
-              -p "{\"data\":{\"GRAPHQL_URL\":\"${CONFIG_GRAPHQL_URL}\"}}"
+              -p "{\"data\":{\"GRAPHQL_URL\":\"/graphql\"}}" || true
 
             ./set-endpoint.sh
 
@@ -187,6 +186,11 @@ spec:
               homeoffice-ui \
               --name=homeoffice-ui \
               --allow-missing-images \
+              -n quarkusdroneshop-demo
+
+            # server.js がバックエンドにプロキシするための URL を設定
+            oc set env deployment/homeoffice-ui \
+              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
               -n quarkusdroneshop-demo
 
             oc expose svc homeoffice-ui \
