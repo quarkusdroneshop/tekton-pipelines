@@ -132,16 +132,17 @@ spec:
         - name: SCRIPT
           value: |
             #!/bin/bash
-            set -e
+            # set -e を使わない: 個々のコマンドでエラーハンドリングする
+            # (一つのコマンドの失敗でパイプライン全体が止まるのを防ぐ)
 
-            # DC と Deployment を両方クリーンアップ (DC が残ると Deployment を上書きし続ける)
-            oc delete route homeoffice-ui      -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete svc homeoffice-ui        -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete deployment homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete dc/homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete rc -l app=homeoffice-ui  -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete is homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete bc/homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
+            # ---- クリーンアップ (DC・Deployment・関連リソースをすべて削除) ----
+            oc delete route homeoffice-ui       -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete svc homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete deployment homeoffice-ui  -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete dc/homeoffice-ui          -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete rc -l app=homeoffice-ui   -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete is homeoffice-ui          -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete bc/homeoffice-ui          -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete istag homeoffice-ui:latest -n quarkusdroneshop-demo --ignore-not-found=true
 
             echo "legacy-peer-deps=true" > .npmrc
@@ -149,110 +150,76 @@ spec:
             CONFIG_CORS_ORIGINS=$(oc get route homeoffice-backend \
               -o jsonpath='{.spec.host}' \
               -n quarkusdroneshop-demo 2>/dev/null || echo "")
-
-            if [[ -z "$CONFIG_CORS_ORIGINS" ]]; then
-              echo "WARNING: homeoffice-backend route not found. Using empty CORS origin." >&2
-            fi
+            echo "CORS origin: ${CONFIG_CORS_ORIGINS}"
 
             # REACT_APP_GRAPHQL_ENDPOINT は相対パス固定 (server.js のプロキシが転送)
+            # GRAPHQL_BACKEND_URL は server.js のデフォルト (http://homeoffice-backend:8080) を使用するため不要
             cat > .env <<EOF
             REACT_APP_GRAPHQL_ENDPOINT=/graphql
             ALLOWED_ORIGINS=https://${CONFIG_CORS_ORIGINS}
             EOF
-
-            echo "===== .env ====="
             cat .env
 
-            oc patch configmap droneshop-config \
-              -n quarkusdroneshop-demo \
-              -p "{\"data\":{\"CORS_ORIGINS\":\"https://${CONFIG_CORS_ORIGINS}\"}}" || true
-
-            oc patch configmap droneshop-config \
-              -n quarkusdroneshop-demo \
-              -p "{\"data\":{\"GRAPHQL_URL\":\"/graphql\"}}" || true
+            oc patch configmap droneshop-config -n quarkusdroneshop-demo \
+              -p "{\"data\":{\"CORS_ORIGINS\":\"https://${CONFIG_CORS_ORIGINS}\"}}" 2>/dev/null || true
 
             ./set-endpoint.sh
 
+            # ---- ビルド ----
             oc new-build \
               --binary \
               --name=homeoffice-ui \
               --image-stream=openshift/nodejs:20-ubi8 \
               -n quarkusdroneshop-demo
+            if [ $? -ne 0 ]; then echo "ERROR: new-build failed" && exit 1; fi
 
-            oc start-build \
-              homeoffice-ui \
-              --from-dir=. \
-              --follow \
+            oc start-build homeoffice-ui --from-dir=. --follow -n quarkusdroneshop-demo
+            if [ $? -ne 0 ]; then echo "ERROR: start-build failed" && exit 1; fi
+
+            # ---- デプロイ ----
+            # --as-deployment-config=false を試み、失敗した場合は省略 (OCP バージョン差吸収)
+            oc new-app homeoffice-ui --name=homeoffice-ui --allow-missing-images \
+              --as-deployment-config=false -n quarkusdroneshop-demo 2>/dev/null || \
+            oc new-app homeoffice-ui --name=homeoffice-ui --allow-missing-images \
               -n quarkusdroneshop-demo
+            if [ $? -ne 0 ]; then echo "ERROR: new-app failed" && exit 1; fi
 
-            # --as-deployment-config=false で DC ではなく Kubernetes Deployment を直接作成
-            # DC を使うと DC controller が Deployment を管理し続けるため env が上書きされ続ける
-            oc new-app \
-              homeoffice-ui \
-              --name=homeoffice-ui \
-              --allow-missing-images \
-              --as-deployment-config=false \
-              -n quarkusdroneshop-demo
+            # DC が作成された場合は DC template に securityContext を設定 (rollout は1回)
+            if oc get dc/homeoffice-ui -n quarkusdroneshop-demo &>/dev/null; then
+              echo "DeploymentConfig detected — patching DC template"
+              oc rollout pause dc/homeoffice-ui -n quarkusdroneshop-demo || true
+              oc patch dc/homeoffice-ui -n quarkusdroneshop-demo --type=json -p='[
+                {"op":"add","path":"/spec/template/spec/containers/0/securityContext","value":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsNonRoot":true}},
+                {"op":"add","path":"/spec/template/spec/securityContext","value":{"seccompProfile":{"type":"RuntimeDefault"}}}
+              ]' || true
+              oc rollout resume dc/homeoffice-ui -n quarkusdroneshop-demo
+              oc rollout status dc/homeoffice-ui -n quarkusdroneshop-demo --timeout=180s
+            else
+              echo "Deployment detected — patching Deployment"
+              oc patch deployment/homeoffice-ui -n quarkusdroneshop-demo --type=json -p='[
+                {"op":"add","path":"/spec/template/spec/containers/0/securityContext","value":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsNonRoot":true}},
+                {"op":"add","path":"/spec/template/spec/securityContext","value":{"seccompProfile":{"type":"RuntimeDefault"}}}
+              ]' || true
+              oc rollout status deployment/homeoffice-ui -n quarkusdroneshop-demo --timeout=180s
+            fi
 
-            # Deployment に env を設定 (DC がないので上書きされない)
-            oc set env deployment/homeoffice-ui \
-              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
-              -n quarkusdroneshop-demo
+            oc expose svc homeoffice-ui --name=homeoffice-ui -n quarkusdroneshop-demo 2>/dev/null || true
 
-            # セキュリティコンテキストを Deployment に直接設定
-            oc patch deployment homeoffice-ui \
-              -n quarkusdroneshop-demo \
-              --type=json \
-              -p='[
-                {
-                  "op": "add",
-                  "path": "/spec/template/spec/containers/0/securityContext",
-                  "value": {
-                    "allowPrivilegeEscalation": false,
-                    "capabilities": { "drop": ["ALL"] },
-                    "runAsNonRoot": true
-                  }
-                },
-                {
-                  "op": "add",
-                  "path": "/spec/template/spec/securityContext",
-                  "value": {
-                    "seccompProfile": { "type": "RuntimeDefault" }
-                  }
-                }
-              ]'
-
-            oc expose svc homeoffice-ui \
-              --name=homeoffice-ui \
-              -n quarkusdroneshop-demo || true
-
-            oc annotate deployment \
-              -l app=homeoffice-ui \
+            oc annotate deployment -l app=homeoffice-ui \
               app.openshift.io/connects-to='["homeoffice-backend"]' \
-              -n quarkusdroneshop-demo --overwrite || true
-
-            oc annotate deployment \
-              -l app=homeoffice-backend \
-              app.openshift.io/connects-to='["postgres"]' \
-              -n quarkusdroneshop-demo --overwrite || true
-
-            oc label dc \
-              -l app=postgres \
-              app.kubernetes.io/name=postgresql \
-              -n quarkusdroneshop-demo --overwrite || true
-
-            oc label deployment \
-              -l app=homeoffice-backend \
-              app.kubernetes.io/name=quarkus \
-              -n quarkusdroneshop-demo --overwrite || true
-
-            oc label deployment \
-              -l app=homeoffice-ui \
+              -n quarkusdroneshop-demo --overwrite 2>/dev/null || true
+            oc label deployment -l app=homeoffice-ui \
               app.kubernetes.io/name=nodejs \
-              -n quarkusdroneshop-demo --overwrite || true
+              -n quarkusdroneshop-demo --overwrite 2>/dev/null || true
+            oc label deployment -l app=homeoffice-backend \
+              app.kubernetes.io/name=quarkus \
+              -n quarkusdroneshop-demo --overwrite 2>/dev/null || true
+            oc label dc -l app=postgres \
+              app.kubernetes.io/name=postgresql \
+              -n quarkusdroneshop-demo --overwrite 2>/dev/null || true
 
-            # Deployment のロールアウト完了まで待機
-            oc rollout status deployment/homeoffice-ui -n quarkusdroneshop-demo --timeout=180s
+            echo "==== Deploy complete ===="
+            oc get pods -l app=homeoffice-ui -n quarkusdroneshop-demo
 
       workspaces:
         - name: source
