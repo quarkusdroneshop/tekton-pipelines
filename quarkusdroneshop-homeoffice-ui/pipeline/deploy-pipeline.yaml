@@ -137,6 +137,8 @@ spec:
             oc delete route homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete svc homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete deployment homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete dc/homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete rc -l app=homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete is homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete bc/homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete istag homeoffice-ui:latest -n quarkusdroneshop-demo --ignore-not-found=true
@@ -188,14 +190,37 @@ spec:
               --allow-missing-images \
               -n quarkusdroneshop-demo
 
-            # server.js がバックエンドにプロキシするための URL を設定
-            # DC と Deployment の両方に設定 (DC が Deployment を管理する場合、DC への設定が永続する)
-            oc set env dc/homeoffice-ui \
-              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
-              -n quarkusdroneshop-demo 2>/dev/null || true
-            oc set env deployment/homeoffice-ui \
-              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
-              -n quarkusdroneshop-demo 2>/dev/null || true
+            # DC の template に env と securityContext を一括設定 → rollout は1回だけ
+            # (oc set env dc/ が rollout をトリガーし、その後 oc patch deployment で
+            #  さらに rollout されると env が失われるため、DC template を直接 patch する)
+            oc patch dc/homeoffice-ui \
+              -n quarkusdroneshop-demo \
+              --type=json \
+              -p='[
+                {
+                  "op": "add",
+                  "path": "/spec/template/spec/containers/0/env",
+                  "value": [
+                    { "name": "GRAPHQL_BACKEND_URL", "value": "http://homeoffice-backend:8080" }
+                  ]
+                },
+                {
+                  "op": "add",
+                  "path": "/spec/template/spec/containers/0/securityContext",
+                  "value": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": { "drop": ["ALL"] },
+                    "runAsNonRoot": true
+                  }
+                },
+                {
+                  "op": "add",
+                  "path": "/spec/template/spec/securityContext",
+                  "value": {
+                    "seccompProfile": { "type": "RuntimeDefault" }
+                  }
+                }
+              ]'
 
             oc expose svc homeoffice-ui \
               --name=homeoffice-ui \
@@ -204,53 +229,27 @@ spec:
             oc annotate deployment \
               -l app=homeoffice-ui \
               app.openshift.io/connects-to='["homeoffice-backend"]' \
-              -n quarkusdroneshop-demo
+              -n quarkusdroneshop-demo --overwrite || true
 
             oc annotate deployment \
               -l app=homeoffice-backend \
               app.openshift.io/connects-to='["postgres"]' \
-              -n quarkusdroneshop-demo
+              -n quarkusdroneshop-demo --overwrite || true
 
             oc label dc \
               -l app=postgres \
               app.kubernetes.io/name=postgresql \
-              -n quarkusdroneshop-demo
+              -n quarkusdroneshop-demo --overwrite || true
 
             oc label deployment \
               -l app=homeoffice-backend \
               app.kubernetes.io/name=quarkus \
-              -n quarkusdroneshop-demo
+              -n quarkusdroneshop-demo --overwrite || true
 
             oc label deployment \
               -l app=homeoffice-ui \
               app.kubernetes.io/name=nodejs \
-              -n quarkusdroneshop-demo
-
-            oc patch deployment homeoffice-ui \
-              -n quarkusdroneshop-demo \
-              --type=json \
-              -p='[
-                {
-                  "op": "add",
-                  "path": "/spec/template/spec/containers/0/securityContext",
-                  "value": {
-                    "allowPrivilegeEscalation": false,
-                    "capabilities": {
-                      "drop": ["ALL"]
-                    },
-                    "runAsNonRoot": true
-                  }
-                },
-                {
-                  "op": "add",
-                  "path": "/spec/template/spec/securityContext",
-                  "value": {
-                    "seccompProfile": {
-                      "type": "RuntimeDefault"
-                    }
-                  }
-                }
-              ]'
+              -n quarkusdroneshop-demo --overwrite || true
 
       workspaces:
         - name: source
