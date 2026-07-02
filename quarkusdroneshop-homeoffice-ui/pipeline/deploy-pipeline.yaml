@@ -134,13 +134,14 @@ spec:
             #!/bin/bash
             set -e
 
-            oc delete route homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete svc homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            # DC と Deployment を両方クリーンアップ (DC が残ると Deployment を上書きし続ける)
+            oc delete route homeoffice-ui      -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete svc homeoffice-ui        -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete deployment homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete dc/homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete rc -l app=homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete is homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
-            oc delete bc/homeoffice-ui -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete dc/homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete rc -l app=homeoffice-ui  -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete is homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
+            oc delete bc/homeoffice-ui         -n quarkusdroneshop-demo --ignore-not-found=true
             oc delete istag homeoffice-ui:latest -n quarkusdroneshop-demo --ignore-not-found=true
 
             echo "legacy-peer-deps=true" > .npmrc
@@ -184,26 +185,25 @@ spec:
               --follow \
               -n quarkusdroneshop-demo
 
+            # --as-deployment-config=false で DC ではなく Kubernetes Deployment を直接作成
+            # DC を使うと DC controller が Deployment を管理し続けるため env が上書きされ続ける
             oc new-app \
               homeoffice-ui \
               --name=homeoffice-ui \
               --allow-missing-images \
+              --as-deployment-config=false \
               -n quarkusdroneshop-demo
 
-            # DC の template に env と securityContext を一括設定 → rollout は1回だけ
-            # (oc set env dc/ が rollout をトリガーし、その後 oc patch deployment で
-            #  さらに rollout されると env が失われるため、DC template を直接 patch する)
-            oc patch dc/homeoffice-ui \
+            # Deployment に env を設定 (DC がないので上書きされない)
+            oc set env deployment/homeoffice-ui \
+              GRAPHQL_BACKEND_URL=http://homeoffice-backend:8080 \
+              -n quarkusdroneshop-demo
+
+            # セキュリティコンテキストを Deployment に直接設定
+            oc patch deployment homeoffice-ui \
               -n quarkusdroneshop-demo \
               --type=json \
               -p='[
-                {
-                  "op": "add",
-                  "path": "/spec/template/spec/containers/0/env",
-                  "value": [
-                    { "name": "GRAPHQL_BACKEND_URL", "value": "http://homeoffice-backend:8080" }
-                  ]
-                },
                 {
                   "op": "add",
                   "path": "/spec/template/spec/containers/0/securityContext",
@@ -250,6 +250,9 @@ spec:
               -l app=homeoffice-ui \
               app.kubernetes.io/name=nodejs \
               -n quarkusdroneshop-demo --overwrite || true
+
+            # Deployment のロールアウト完了まで待機
+            oc rollout status deployment/homeoffice-ui -n quarkusdroneshop-demo --timeout=180s
 
       workspaces:
         - name: source
