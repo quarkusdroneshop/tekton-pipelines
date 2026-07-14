@@ -335,18 +335,18 @@ spec:
               echo "Resetting sequences on pod: $PGPOD"
               oc exec "$PGPOD" -n quarkusdroneshop-demo -- \
                 psql -U droneshopadmin -d droneshopdb -c "
-SELECT setval('droneshop.id_seq_gen', (
-  SELECT GREATEST(
-    COALESCE((SELECT MAX(id) FROM droneshop.\"lineItems\"), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.productitemsales), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.itemsales), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.productsales), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.averageorderuptime), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.storeserversales), 0),
-    COALESCE((SELECT MAX(id) FROM droneshop.storelocation), 0)
-  ) + 100
-));
-" || echo "WARNING: sequence reset had warnings (non-fatal)"
+                SELECT setval('droneshop.id_seq_gen', (
+                  SELECT GREATEST(
+                    COALESCE((SELECT MAX(id) FROM droneshop.\"lineItems\"), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.productitemsales), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.itemsales), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.productsales), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.averageorderuptime), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.storeserversales), 0),
+                    COALESCE((SELECT MAX(id) FROM droneshop.storelocation), 0)
+                  ) + 100
+                ));
+                " || echo "WARNING: sequence reset had warnings (non-fatal)"
             else
               echo "WARNING: PostgreSQL primary pod not found; skipping sequence reset"
             fi
@@ -363,7 +363,8 @@ SELECT setval('droneshop.id_seq_gen', (
               -p '{"spec":{"tls":{"termination":"edge","insecureEdgeTerminationPolicy":"Redirect"}}}' || true
 
             # ── すべての env を 1 コマンドでセット（余分なロールアウトを防ぐ）──
-            # QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION=none で再デプロイ時のシーケンスリセットを防止
+            # TEMP: QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION=update to create missing tables (StoreLocation etc).
+            # Revert to "none" once confirmed, to prevent sequence resets on redeploy.
             # /q/health チェック用 URL (各クラスタの公開 Route を使用)
             HEALTH_URL_WEB=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.HEALTH_URL_WEB}' 2>/dev/null || echo "")
             HEALTH_URL_COUNTER=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.HEALTH_URL_COUNTER}' 2>/dev/null || echo "")
@@ -379,7 +380,7 @@ SELECT setval('droneshop.id_seq_gen', (
               QUARKUS_LOG_LEVEL=$QUARKUS_LOG_LEVEL \
               QUARKUSDRONESHOP_LOG_LEVEL=$QUARKUSDRONESHOP_LOG_LEVEL \
               STORE_LOCATIONS=$STORE_LOCATIONS \
-              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION=none \
+              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION=update \
               HEALTH_URL_WEB=$HEALTH_URL_WEB \
               HEALTH_URL_COUNTER=$HEALTH_URL_COUNTER \
               HEALTH_URL_QDCA10=$HEALTH_URL_QDCA10 \
@@ -397,7 +398,7 @@ SELECT setval('droneshop.id_seq_gen', (
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               STORE_LOCATIONS="$STORE_LOCATIONS" \
-              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION="none" \
+              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION="update" \
               HEALTH_URL_WEB="$HEALTH_URL_WEB" \
               HEALTH_URL_COUNTER="$HEALTH_URL_COUNTER" \
               HEALTH_URL_QDCA10="$HEALTH_URL_QDCA10" \
@@ -414,7 +415,7 @@ SELECT setval('droneshop.id_seq_gen', (
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               STORE_LOCATIONS="$STORE_LOCATIONS" \
-              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION="none" \
+              QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION="update" \
               HEALTH_URL_WEB="$HEALTH_URL_WEB" \
               HEALTH_URL_COUNTER="$HEALTH_URL_COUNTER" \
               HEALTH_URL_QDCA10="$HEALTH_URL_QDCA10" \
