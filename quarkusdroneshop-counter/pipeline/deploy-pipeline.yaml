@@ -323,6 +323,11 @@ spec:
               PGSQL_USER="$PGSQL_USER" \
               PGSQL_PASS="$PGSQL_PASS" \
               -n quarkusdroneshop-demo
+
+            # ── liveness/readiness プローブ設定 ────────────────────
+            oc set probe deployment/counter --liveness --get-url=http://:8080/q/health/live --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo
+            oc set probe deployment/counter --readiness --get-url=http://:8080/q/health/ready --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo
+
             # Expose Route for /q/health checks from other clusters
             oc expose svc/counter -n quarkusdroneshop-demo || true
       workspaces:

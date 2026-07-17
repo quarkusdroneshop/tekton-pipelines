@@ -203,6 +203,12 @@ spec:
               oc rollout status deployment/homeoffice-ui -n quarkusdroneshop-demo --timeout=180s
             fi
 
+            # ── liveness/readiness プローブ設定（SPA のため / をヘルスチェック対象に使用）──
+            oc set probe deployment/homeoffice-ui --liveness --get-url=http://:8080/ --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe deployment/homeoffice-ui --readiness --get-url=http://:8080/ --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe dc/homeoffice-ui --liveness --get-url=http://:8080/ --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe dc/homeoffice-ui --readiness --get-url=http://:8080/ --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo 2>/dev/null || true
+
             oc expose svc homeoffice-ui --name=homeoffice-ui -n quarkusdroneshop-demo 2>/dev/null || true
 
             oc annotate deployment -l app=homeoffice-ui \

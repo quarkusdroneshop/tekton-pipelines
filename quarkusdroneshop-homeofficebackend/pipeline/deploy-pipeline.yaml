@@ -424,6 +424,12 @@ spec:
               HEALTH_URL_HOMEOFFICE="http://homeoffice-backend:8080/q/health" \
               -n quarkusdroneshop-demo 2>/dev/null || true
 
+            # ── liveness/readiness プローブ設定 ────────────────────
+            oc set probe deployment/homeoffice-backend --liveness --get-url=http://:8080/q/health/live --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe deployment/homeoffice-backend --readiness --get-url=http://:8080/q/health/ready --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe dc/homeoffice-backend --liveness --get-url=http://:8080/q/health/live --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo 2>/dev/null || true
+            oc set probe dc/homeoffice-backend --readiness --get-url=http://:8080/q/health/ready --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo 2>/dev/null || true
+
             CONFIG_CORS_ORIGINS=$(oc get route homeoffice-backend -o jsonpath='{.spec.host}' -n quarkusdroneshop-demo)
             CONFIG_LOYALTY_STREAM_URL="${CONFIG_CORS_ORIGINS}/dashboard/loyaltystream"
             CONFIG_STREAM_URL="${CONFIG_CORS_ORIGINS}/dashboard/stream"

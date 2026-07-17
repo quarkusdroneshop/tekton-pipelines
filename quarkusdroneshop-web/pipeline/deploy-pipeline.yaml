@@ -349,6 +349,10 @@ spec:
             oc set env deployment/web STORE_ID=$STORE_ID -n quarkusdroneshop-demo
             REWARD_STREAM_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.REWARD_STREAM_URL}')
             oc set env deployment/web REWARD_STREAM_URL=$REWARD_STREAM_URL -n quarkusdroneshop-demo
+
+            # ── liveness/readiness プローブ設定 ────────────────────
+            oc set probe deployment/web --liveness --get-url=http://:8080/q/health/live --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo
+            oc set probe deployment/web --readiness --get-url=http://:8080/q/health/ready --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo
       workspaces:
         - name: source
           workspace: shared-workspace

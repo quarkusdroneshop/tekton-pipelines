@@ -320,6 +320,11 @@ spec:
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               -n quarkusdroneshop-demo
+
+            # ── liveness/readiness プローブ設定 ────────────────────
+            oc set probe deployment/qdca10pro --liveness --get-url=http://:8080/q/health/live --initial-delay-seconds=15 --period-seconds=15 -n quarkusdroneshop-demo
+            oc set probe deployment/qdca10pro --readiness --get-url=http://:8080/q/health/ready --initial-delay-seconds=10 --period-seconds=10 -n quarkusdroneshop-demo
+
             # Expose Route for /q/health checks from other clusters
             oc expose svc/qdca10pro -n quarkusdroneshop-demo || true
       workspaces:
