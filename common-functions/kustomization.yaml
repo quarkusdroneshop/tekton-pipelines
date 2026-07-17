@@ -1,5 +1,6 @@
 resources:
 - pvc/maven-cache-pvc.yaml
+- rbac/pipeline-edit-demo-rolebinding.yaml
 - tasks/git-clone.yaml
 - tasks/maven11.yaml
 - tasks/maven17.yaml
@@ -13,7 +14,5 @@ resources:
 - tasks/gitleaks-scan.yaml
 - tasks/trivy-scan.yaml
 - tasks/wapiti-scan.yaml
-- tasks/owasp-dependency-check.yaml
-- tasks/owasp-dependency-check-update.yaml
 - tasks/pipeline-summary.yaml
 - tasks/nodejs-test.yaml
