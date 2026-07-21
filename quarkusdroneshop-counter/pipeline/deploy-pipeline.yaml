@@ -313,6 +313,7 @@ spec:
             PGSQL_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.PGSQL_URL}')
             PGSQL_USER=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.user}' | base64 --decode)
             PGSQL_PASS=$(oc get secret droneshopdb-pguser-droneshopadmin -n quarkusdroneshop-demo -o=jsonpath='{.data.password}' | base64 --decode)
+            APICURIO_REGISTRY_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.APICURIO_REGISTRY_URL}')
 
             oc set env deployment/counter \
               JAVA_OPTS_APPEND="-Dquarkus.profile=prod" \
@@ -322,6 +323,7 @@ spec:
               PGSQL_URL="$PGSQL_URL" \
               PGSQL_USER="$PGSQL_USER" \
               PGSQL_PASS="$PGSQL_PASS" \
+              APICURIO_REGISTRY_URL="$APICURIO_REGISTRY_URL" \
               -n quarkusdroneshop-demo
 
             # ── liveness/readiness プローブ設定 ────────────────────
