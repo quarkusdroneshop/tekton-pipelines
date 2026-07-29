@@ -307,6 +307,7 @@ spec:
             KAFKA_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.KAFKA_BOOTSTRAP_URLS}')
             QUARKUS_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUS_LOG_LEVEL}')
             QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
+            APICURIO_REGISTRY_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.APICURIO_REGISTRY_URL}')
 
             oc new-build --binary --name=qdca10 --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
             oc patch bc/qdca10 -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
@@ -319,6 +320,7 @@ spec:
               KAFKA_BOOTSTRAP_URLS="$KAFKA_URL" \
               QUARKUS_LOG_LEVEL="$QUARKUS_LOG_LEVEL" \
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
+              APICURIO_REGISTRY_URL="$APICURIO_REGISTRY_URL" \
               -n quarkusdroneshop-demo
 
             # ── liveness/readiness プローブ設定 ────────────────────
