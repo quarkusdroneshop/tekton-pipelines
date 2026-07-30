@@ -313,6 +313,12 @@ spec:
             # 未設定時はローカル無prefixにフォールバック。
             ORDERS_IN_TOPIC=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.ORDERS_IN_TOPIC}')
             ORDERS_IN_TOPIC="${ORDERS_IN_TOPIC:-dataproduct-order-events}"
+            # ORDER_EVENTS_REGISTRY_URL: orders-in が読む dataproduct-order-events を
+            # 実際にシリアライズしたサイト(asite)のApicurio Registry URL。単一クラスタ
+            # 構成では未設定でよく、その場合はローカルのAPICURIO_REGISTRY_URLにフォールバック。
+            # 本物のbsiteクラスタでは ConfigMap に asite側のRegistry URLを設定しておくこと。
+            ORDER_EVENTS_REGISTRY_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.ORDER_EVENTS_REGISTRY_URL}')
+            ORDER_EVENTS_REGISTRY_URL="${ORDER_EVENTS_REGISTRY_URL:-$APICURIO_REGISTRY_URL}"
 
             oc new-build --binary --name=qdca10pro --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
             oc patch bc/qdca10pro -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
@@ -327,6 +333,7 @@ spec:
               QUARKUSDRONESHOP_LOG_LEVEL="$QUARKUSDRONESHOP_LOG_LEVEL" \
               APICURIO_REGISTRY_URL="$APICURIO_REGISTRY_URL" \
               ORDERS_IN_TOPIC="$ORDERS_IN_TOPIC" \
+              ORDER_EVENTS_REGISTRY_URL="$ORDER_EVENTS_REGISTRY_URL" \
               -n quarkusdroneshop-demo
 
             # ── liveness/readiness プローブ設定 ────────────────────
