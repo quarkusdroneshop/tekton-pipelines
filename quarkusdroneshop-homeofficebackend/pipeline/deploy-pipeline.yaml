@@ -372,6 +372,17 @@ spec:
             HEALTH_URL_QDCA10PRO=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.HEALTH_URL_QDCA10PRO}' 2>/dev/null || echo "")
             HEALTH_URL_INVENTORY=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.HEALTH_URL_INVENTORY}' 2>/dev/null || echo "")
 
+            # INVENTORY_API_URL (在庫管理ページ用REST、csite/bsiteのinventoryサービスへの
+            # プロキシ先) と ASITE_APICURIO_REGISTRY_URL (orders-created/orders-updated が
+            # 購読する shop-asite.dataproduct-order-events のデシリアライズに使う asite
+            # 自身のApicurio Registry URL) は、以前は手動 (oc set env) で設定していたが、
+            # このパイプラインの env セット (下記) に含まれておらず、push-oc-apps 実行の
+            # たびに Deployment マニフェスト適用で消えてしまい、そのたびに在庫ページが
+            # 空になる/Kafka購読が壊れる事故が繰り返し発生した。droneshop-config
+            # ConfigMap に同名キーとして事前に設定しておくこと。
+            INVENTORY_API_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.INVENTORY_API_URL}' 2>/dev/null || echo "")
+            ASITE_APICURIO_REGISTRY_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.ASITE_APICURIO_REGISTRY_URL}' 2>/dev/null || echo "")
+
             ENV_ARGS="JAVA_OPTS_APPEND=-Dquarkus.profile=prod \
               POSTGRESQL_JDBC_URL=$POSTGRESQL_JDBC_URL \
               POSTGRESQL_USER=$POSTGRESQL_USER \
@@ -386,7 +397,9 @@ spec:
               HEALTH_URL_QDCA10=$HEALTH_URL_QDCA10 \
               HEALTH_URL_QDCA10PRO=$HEALTH_URL_QDCA10PRO \
               HEALTH_URL_INVENTORY=$HEALTH_URL_INVENTORY \
-              HEALTH_URL_HOMEOFFICE=http://homeoffice-backend:8080/q/health"
+              HEALTH_URL_HOMEOFFICE=http://homeoffice-backend:8080/q/health \
+              INVENTORY_API_URL=$INVENTORY_API_URL \
+              ASITE_APICURIO_REGISTRY_URL=$ASITE_APICURIO_REGISTRY_URL"
 
             # DC と Deployment の両方に設定 (DC が Deployment を管理する場合、DC への設定が永続する)
             oc set env dc/homeoffice-backend \
@@ -405,6 +418,8 @@ spec:
               HEALTH_URL_QDCA10PRO="$HEALTH_URL_QDCA10PRO" \
               HEALTH_URL_INVENTORY="$HEALTH_URL_INVENTORY" \
               HEALTH_URL_HOMEOFFICE="http://homeoffice-backend:8080/q/health" \
+              INVENTORY_API_URL="$INVENTORY_API_URL" \
+              ASITE_APICURIO_REGISTRY_URL="$ASITE_APICURIO_REGISTRY_URL" \
               -n quarkusdroneshop-demo 2>/dev/null || true
             oc set env deployment/homeoffice-backend \
               JAVA_OPTS_APPEND="-Dquarkus.profile=prod" \
@@ -422,6 +437,8 @@ spec:
               HEALTH_URL_QDCA10PRO="$HEALTH_URL_QDCA10PRO" \
               HEALTH_URL_INVENTORY="$HEALTH_URL_INVENTORY" \
               HEALTH_URL_HOMEOFFICE="http://homeoffice-backend:8080/q/health" \
+              INVENTORY_API_URL="$INVENTORY_API_URL" \
+              ASITE_APICURIO_REGISTRY_URL="$ASITE_APICURIO_REGISTRY_URL" \
               -n quarkusdroneshop-demo 2>/dev/null || true
 
             # ── liveness/readiness プローブ設定 ────────────────────

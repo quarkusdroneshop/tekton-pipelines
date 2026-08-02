@@ -13,3 +13,7 @@ data:
   QUARKUS_LOG_LEVEL: "INFO"
   QUARKUSDRONESHOP_LOG_LEVEL: "INFO"
   JAVA_OPTS_APPEND: "-Dquarkus.profile=prod"
+  # 以下はSandboxごとに実際のURLへ手動で書き換えること (deploy-pipeline.yaml の
+  # push-oc-apps がここから読み取り homeoffice-backend の Deployment env に反映する)。
+  # INVENTORY_API_URL: "https://inventory-quarkusdroneshop-demo.apps.ocp.<bsite-domain>"
+  # ASITE_APICURIO_REGISTRY_URL: "http://droneshop-apicurioregistry-kafkasql.quarkusdroneshop-demo.router-default.apps.ocp.<asite-domain>"
