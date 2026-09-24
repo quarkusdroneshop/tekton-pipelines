@@ -28,7 +28,7 @@ spec:
       description: The workspace containing the built Maven project.
   steps:
     - name: publish
-      image: registry.redhat.io/openshift4/ose-cli:latest
+      image: registry.redhat.io/openshift4/ose-cli:v4.15
       workingDir: $(workspaces.source.path)/$(params.CONTEXT_DIR)
       script: |
         #!/bin/bash

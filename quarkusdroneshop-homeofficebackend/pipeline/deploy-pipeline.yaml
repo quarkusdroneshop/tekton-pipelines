@@ -351,7 +351,7 @@ spec:
               echo "WARNING: PostgreSQL primary pod not found; skipping sequence reset"
             fi
 
-            oc new-build --binary --name=homeoffice-backend --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc new-build --binary --name=homeoffice-backend --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo || true
             oc patch bc/homeoffice-backend -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build homeoffice-backend --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app homeoffice-backend --name=homeoffice-backend --allow-missing-images -n quarkusdroneshop-demo

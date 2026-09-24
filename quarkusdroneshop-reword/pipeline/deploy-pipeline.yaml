@@ -312,7 +312,7 @@ spec:
             QUARKUSDRONESHOP_LOG_LEVEL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.QUARKUSDRONESHOP_LOG_LEVEL}')
 
             RUNNER_JAR=$(ls target/*-runner.jar | head -1)
-            oc new-build --binary --name=reward --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc new-build --binary --name=reward --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo || true
             oc patch bc/reward -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build reward --from-file="$RUNNER_JAR" --follow -n quarkusdroneshop-demo
             oc new-app reward --name=reward --allow-missing-images -n quarkusdroneshop-demo

@@ -320,7 +320,7 @@ spec:
             ORDER_EVENTS_REGISTRY_URL=$(oc get configmap droneshop-config -n quarkusdroneshop-demo -o=jsonpath='{.data.ORDER_EVENTS_REGISTRY_URL}')
             ORDER_EVENTS_REGISTRY_URL="${ORDER_EVENTS_REGISTRY_URL:-$APICURIO_REGISTRY_URL}"
 
-            oc new-build --binary --name=qdca10 --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo
+            oc new-build --binary --name=qdca10 --image=registry.access.redhat.com/ubi8/openjdk-21:1.20 -n quarkusdroneshop-demo || true
             oc patch bc/qdca10 -n quarkusdroneshop-demo --type=json -p '[{"op":"replace","path":"/spec/strategy/sourceStrategy/from","value":{"kind":"DockerImage","name":"registry.access.redhat.com/ubi8/openjdk-21:1.20"}}]'
             oc start-build qdca10 --from-dir=target/quarkus-app/ --follow -n quarkusdroneshop-demo
             oc new-app qdca10 --name=qdca10 --allow-missing-images -n quarkusdroneshop-demo
